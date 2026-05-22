@@ -70,29 +70,7 @@ class _FlowShellState extends State<FlowShell> {
         return '오래된순';
       case PromptSortMode.title:
         return '이름순';
-      case PromptSortMode.custom:
-        return '직접 정렬';
     }
-  }
-
-  List<String> get _normalizedCustomPromptOrder {
-    final existingIds = widget.store.prompts.map((prompt) => prompt.id).toSet();
-    final seenIds = <String>{};
-    final orderedIds = <String>[];
-
-    for (final id in widget.store.settings.customPromptOrder) {
-      if (existingIds.contains(id) && seenIds.add(id)) {
-        orderedIds.add(id);
-      }
-    }
-
-    for (final prompt in widget.store.prompts) {
-      if (seenIds.add(prompt.id)) {
-        orderedIds.add(prompt.id);
-      }
-    }
-
-    return orderedIds;
   }
 
   List<PromptItem> _sortPrompts(
@@ -100,12 +78,6 @@ class _FlowShellState extends State<FlowShell> {
     required PromptSortMode mode,
   }) {
     switch (mode) {
-      case PromptSortMode.custom:
-        final idToPrompt = {for (final p in prompts) p.id: p};
-        return _normalizedCustomPromptOrder
-            .where(idToPrompt.containsKey)
-            .map((id) => idToPrompt[id]!)
-            .toList();
       case PromptSortMode.newest:
         return List<PromptItem>.from(prompts)
           ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
@@ -127,55 +99,7 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _changeSortMode(PromptSortMode mode) async {
-    var nextSettings = widget.store.settings;
-    if (mode == PromptSortMode.custom) {
-      nextSettings = nextSettings.copyWith(
-        customPromptOrder: _normalizedCustomPromptOrder,
-      );
-    }
-    await _persistSettings(nextSettings.copyWith(promptSortMode: mode));
-  }
-
-  Future<void> _movePromptByOffset({
-    required String promptId,
-    required int offset,
-  }) async {
-    if (offset == 0) return;
-
-    final currentMode = widget.store.settings.promptSortMode;
-    final baseOrderIds = currentMode == PromptSortMode.custom
-        ? _normalizedCustomPromptOrder
-        : _sortPrompts(
-            widget.store.prompts,
-            mode: currentMode,
-          ).map((p) => p.id).toList();
-
-    final visibleIdsSet = _filteredPrompts.map((p) => p.id).toSet();
-    final visibleOrderedIds = baseOrderIds
-        .where(visibleIdsSet.contains)
-        .toList();
-
-    final currentIndex = visibleOrderedIds.indexOf(promptId);
-    if (currentIndex == -1) return;
-
-    final targetIndex = currentIndex + offset;
-    if (targetIndex < 0 || targetIndex >= visibleOrderedIds.length) return;
-
-    final movedId = visibleOrderedIds.removeAt(currentIndex);
-    visibleOrderedIds.insert(targetIndex, movedId);
-
-    var vIdx = 0;
-    final nextOrder = [
-      for (final id in baseOrderIds)
-        visibleIdsSet.contains(id) ? visibleOrderedIds[vIdx++] : id,
-    ];
-
-    await _persistSettings(
-      widget.store.settings.copyWith(
-        promptSortMode: PromptSortMode.custom,
-        customPromptOrder: nextOrder,
-      ),
-    );
+    await _persistSettings(widget.store.settings.copyWith(promptSortMode: mode));
   }
 
   Widget _buildPromptCard({
@@ -202,34 +126,6 @@ class _FlowShellState extends State<FlowShell> {
       prompt: prompt,
       isGrid: isGrid,
       folderName: folderName,
-      headerActions:
-          widget.store.settings.promptSortMode == PromptSortMode.custom
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  onPressed: index == 0
-                      ? null
-                      : () => _movePromptByOffset(
-                          promptId: prompt.id,
-                          offset: -1,
-                        ),
-                  tooltip: '위로 이동',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                ),
-                IconButton(
-                  onPressed: index == totalCount - 1
-                      ? null
-                      : () =>
-                            _movePromptByOffset(promptId: prompt.id, offset: 1),
-                  tooltip: '아래로 이동',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                ),
-              ],
-            )
-          : null,
       onCopy: () => _copy(prompt),
       onEdit: () => _openEditor(existing: prompt),
       onDelete: () => _deletePrompt(prompt),
@@ -271,9 +167,6 @@ class _FlowShellState extends State<FlowShell> {
         widget.store.prompts[idx] = result;
       } else {
         widget.store.prompts.add(result);
-        widget.store.settings = widget.store.settings.copyWith(
-          customPromptOrder: _normalizedCustomPromptOrder,
-        );
       }
     });
     await widget.onStoreChanged();
@@ -282,11 +175,6 @@ class _FlowShellState extends State<FlowShell> {
   Future<void> _deletePrompt(PromptItem p) async {
     setState(() {
       widget.store.prompts.removeWhere((item) => item.id == p.id);
-      widget.store.settings = widget.store.settings.copyWith(
-        customPromptOrder: _normalizedCustomPromptOrder
-            .where((id) => id != p.id)
-            .toList(),
-      );
     });
     await widget.onStoreChanged();
   }
@@ -301,17 +189,6 @@ class _FlowShellState extends State<FlowShell> {
 
     setState(() {
       widget.store.prompts.add(newPrompt);
-      final nextOrder = _normalizedCustomPromptOrder;
-      final insertAt = nextOrder.indexOf(p.id);
-      nextOrder.remove(newPrompt.id);
-      nextOrder.insert(
-        insertAt == -1 ? nextOrder.length : insertAt + 1,
-        newPrompt.id,
-      );
-
-      widget.store.settings = widget.store.settings.copyWith(
-        customPromptOrder: nextOrder,
-      );
     });
     await widget.onStoreChanged();
   }
@@ -749,63 +626,10 @@ class _FlowShellState extends State<FlowShell> {
                   },
                   icon: const Icon(Icons.search_rounded),
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded),
-                  onSelected: (value) {
-                    if (value == 'sort_newest') _changeSortMode(PromptSortMode.newest);
-                    if (value == 'sort_oldest') _changeSortMode(PromptSortMode.oldest);
-                    if (value == 'sort_title') _changeSortMode(PromptSortMode.title);
-                    if (value == 'sort_custom') _changeSortMode(PromptSortMode.custom);
-                    if (value == 'toggle_layout') {
-                      final currentMode = widget.store.settings.promptViewMode;
-                      final nextMode = currentMode == PromptViewMode.list
-                          ? PromptViewMode.grid
-                          : PromptViewMode.list;
-                      _persistSettings(
-                        widget.store.settings.copyWith(
-                          promptViewMode: nextMode,
-                        ),
-                      );
-                    }
-                    if (value == 'add_folder') _showFolderDialog();
-                    if (value == 'settings') _openSettings();
-                  },
-                  itemBuilder: (ctx) => [
-                    const PopupMenuItem(
-                      value: 'toggle_layout',
-                      child: Text('레이아웃 전환'),
-                    ),
-                    const PopupMenuDivider(),
-                    CheckedPopupMenuItem(
-                      checked: widget.store.settings.promptSortMode == PromptSortMode.newest,
-                      value: 'sort_newest',
-                      child: const Text('최신순 정렬'),
-                    ),
-                    CheckedPopupMenuItem(
-                      checked: widget.store.settings.promptSortMode == PromptSortMode.oldest,
-                      value: 'sort_oldest',
-                      child: const Text('오래된순 정렬'),
-                    ),
-                    CheckedPopupMenuItem(
-                      checked: widget.store.settings.promptSortMode == PromptSortMode.title,
-                      value: 'sort_title',
-                      child: const Text('이름순 정렬'),
-                    ),
-                    CheckedPopupMenuItem(
-                      checked: widget.store.settings.promptSortMode == PromptSortMode.custom,
-                      value: 'sort_custom',
-                      child: const Text('직접 정렬'),
-                    ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: 'add_folder',
-                      child: Text('폴더 추가'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'settings',
-                      child: Text('설정'),
-                    ),
-                  ],
+                IconButton(
+                  tooltip: '설정',
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings_rounded),
                 ),
               ],
       ),
@@ -840,15 +664,13 @@ class _FlowShellState extends State<FlowShell> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final is2Column = widget.store.settings.promptViewMode == PromptViewMode.grid;
-                final columnCount = is2Column ? 2 : (constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 3 : 2));
+                const columnCount = 2;
                 const crossAxisSpacing = 16.0;
                 const mainAxisSpacing = 16.0;
                 const padding = 16.0;
                 final totalSpacing = (columnCount - 1) * crossAxisSpacing + padding * 2;
                 final itemWidth = (constraints.maxWidth - totalSpacing) / columnCount;
                 final mainAxisExtent = itemWidth + 60.0;
-                final gridExtent = constraints.maxWidth < 640 ? constraints.maxWidth : 380.0;
 
                 return CustomScrollView(
                   slivers: [
@@ -857,114 +679,58 @@ class _FlowShellState extends State<FlowShell> {
                       child: _buildFoldersHorizontalList(),
                     ),
 
-                    // Layout toggle and sorting controls
+                    // Sorting controls (layout toggle removed)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                         child: Align(
                           alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  final currentMode = widget.store.settings.promptViewMode;
-                                  final nextMode = currentMode == PromptViewMode.list
-                                      ? PromptViewMode.grid
-                                      : PromptViewMode.list;
-                                  _persistSettings(
-                                    widget.store.settings.copyWith(
-                                      promptViewMode: nextMode,
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).cardColor,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withOpacity(0.22),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        widget.store.settings.promptViewMode == PromptViewMode.list
-                                            ? Icons.grid_view_rounded
-                                            : Icons.grid_on_rounded,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        widget.store.settings.promptViewMode == PromptViewMode.list
-                                            ? '원래 배열'
-                                            : '2열 배열',
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                          child: PopupMenuButton<PromptSortMode>(
+                            tooltip: '정렬',
+                            onSelected: _changeSortMode,
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: PromptSortMode.newest,
+                                child: Text('최신순'),
                               ),
-                              const SizedBox(width: 12),
-                              PopupMenuButton<PromptSortMode>(
-                                tooltip: '정렬',
-                                onSelected: _changeSortMode,
-                                itemBuilder: (context) => const [
-                                  PopupMenuItem(
-                                    value: PromptSortMode.newest,
-                                    child: Text('최신순'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: PromptSortMode.oldest,
-                                    child: Text('오래된순'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: PromptSortMode.title,
-                                    child: Text('이름순'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: PromptSortMode.custom,
-                                    child: Text('직접 정렬'),
-                                  ),
-                                ],
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).cardColor,
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant
-                                          .withOpacity(0.22),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.sort_rounded, size: 18),
-                                      const SizedBox(width: 8),
-                                      Text(_sortModeLabel),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.expand_more_rounded,
-                                        size: 18,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              PopupMenuItem(
+                                value: PromptSortMode.oldest,
+                                child: Text('오래된순'),
+                              ),
+                              PopupMenuItem(
+                                value: PromptSortMode.title,
+                                child: Text('이름순'),
                               ),
                             ],
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).cardColor,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant
+                                      .withOpacity(0.22),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.sort_rounded, size: 18),
+                                  const SizedBox(width: 8),
+                                  Text(_sortModeLabel),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.expand_more_rounded,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1019,19 +785,12 @@ class _FlowShellState extends State<FlowShell> {
                         SliverPadding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           sliver: SliverGrid(
-                            gridDelegate: is2Column
-                                ? SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    mainAxisSpacing: mainAxisSpacing,
-                                    crossAxisSpacing: crossAxisSpacing,
-                                    mainAxisExtent: mainAxisExtent,
-                                  )
-                                : SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: gridExtent,
-                                    mainAxisSpacing: mainAxisSpacing,
-                                    crossAxisSpacing: crossAxisSpacing,
-                                    mainAxisExtent: mainAxisExtent,
-                                  ),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: mainAxisSpacing,
+                              crossAxisSpacing: crossAxisSpacing,
+                              mainAxisExtent: mainAxisExtent,
+                            ),
                             delegate: SliverChildBuilderDelegate(
                               (context, idx) {
                                 final prompt = entry.value[idx];

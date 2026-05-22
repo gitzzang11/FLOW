@@ -17,6 +17,28 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
     scaffoldBackgroundColor: brightness == Brightness.dark
         ? Colors.black
         : const Color(0xFFF8FAFC),
+    appBarTheme: AppBarTheme(
+      backgroundColor: brightness == Brightness.dark
+          ? Colors.black
+          : const Color(0xFFF8FAFC),
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: brightness == Brightness.dark
+          ? Colors.black
+          : Colors.white,
+      surfaceTintColor: Colors.transparent,
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: brightness == Brightness.dark
+          ? Colors.black
+          : Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
     textTheme: base.textTheme.apply(
       bodyColor: brightness == Brightness.dark
           ? Colors.white

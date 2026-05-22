@@ -13,8 +13,7 @@ enum AppPalette {
 enum PromptSortMode {
   newest('newest'),
   oldest('oldest'),
-  title('title'),
-  custom('custom');
+  title('title');
 
   const PromptSortMode(this.storageValue);
 
@@ -177,7 +176,7 @@ class AppSettings {
     this.pinCode = '',
     this.favoriteColors = const [],
     this.promptSortMode = PromptSortMode.newest,
-    this.promptViewMode = PromptViewMode.list,
+    this.promptViewMode = PromptViewMode.grid,
     this.customPromptOrder = const [],
   });
 

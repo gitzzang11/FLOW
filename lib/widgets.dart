@@ -386,7 +386,6 @@ class PromptCard extends StatelessWidget {
     required this.prompt,
     this.isGrid = false,
     required this.folderName,
-    this.headerActions,
     required this.onCopy,
     required this.onEdit,
     required this.onDelete,
@@ -396,7 +395,6 @@ class PromptCard extends StatelessWidget {
   final PromptItem prompt;
   final String folderName;
   final bool isGrid;
-  final Widget? headerActions;
   final VoidCallback onCopy;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -939,44 +937,181 @@ class _ColorDot extends StatelessWidget {
   }
 }
 
-class ColorPickerDialog extends StatelessWidget {
+class ColorPickerDialog extends StatefulWidget {
   const ColorPickerDialog({super.key, required this.presets});
 
   final List<Color> presets;
 
   @override
+  State<ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<ColorPickerDialog> {
+  final TextEditingController _hexController = TextEditingController();
+  Color? _customColor;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController.addListener(_onHexChanged);
+  }
+
+  @override
+  void dispose() {
+    _hexController.removeListener(_onHexChanged);
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _onHexChanged() {
+    final text = _hexController.text.trim().replaceAll('#', '');
+    if (text.isEmpty) {
+      setState(() {
+        _customColor = null;
+        _errorText = null;
+      });
+      return;
+    }
+
+    final hexRegex = RegExp(r'^[0-9a-fA-F]{6}$');
+    if (!hexRegex.hasMatch(text)) {
+      setState(() {
+        _customColor = null;
+        _errorText = '올바른 6자리 16진수 코드를 입력하세요. (예: FF5733)';
+      });
+      return;
+    }
+
+    final parsedValue = int.tryParse(text, radix: 16);
+    if (parsedValue != null) {
+      setState(() {
+        _customColor = Color(0xFF000000 | parsedValue);
+        _errorText = null;
+      });
+    } else {
+      setState(() {
+        _customColor = null;
+        _errorText = '유효하지 않은 색상 코드입니다.';
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AlertDialog(
       title: const Text('색상 선택'),
       content: SizedBox(
-        width: double.maxFinite,
-        child: GridView.builder(
-          shrinkWrap: true,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-          ),
-          itemCount: presets.length,
-          itemBuilder: (ctx, idx) {
-            final color = presets[idx];
-            return GestureDetector(
-              onTap: () => Navigator.pop(ctx, color),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.black12),
+        width: 320,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '기본 색상',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                ),
+                itemCount: widget.presets.length,
+                itemBuilder: (ctx, idx) {
+                  final color = widget.presets[idx];
+                  return GestureDetector(
+                    onTap: () => Navigator.pop(ctx, color),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              const Divider(),
+              const SizedBox(height: 16),
+              const Text(
+                '사용자 정의 색상',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _hexController,
+                      maxLength: 7,
+                      decoration: InputDecoration(
+                        prefixText: '#',
+                        labelText: '색상 코드 (HEX)',
+                        hintText: 'FF5733',
+                        errorText: _errorText,
+                        errorMaxLines: 2,
+                        counterText: '',
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _customColor ?? (isDark ? Colors.grey[800] : Colors.grey[200]),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        width: 2,
+                      ),
+                    ),
+                    child: _customColor == null
+                        ? Icon(
+                            Icons.question_mark_rounded,
+                            size: 18,
+                            color: isDark ? Colors.white30 : Colors.black26,
+                          )
+                        : null,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('취소'),
+        ),
+        FilledButton(
+          onPressed: _customColor == null
+              ? null
+              : () => Navigator.pop(context, _customColor),
+          child: const Text('적용'),
         ),
       ],
     );
