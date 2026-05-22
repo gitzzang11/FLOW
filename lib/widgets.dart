@@ -402,223 +402,171 @@ class PromptCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onDuplicate;
 
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final titleColor = Color(prompt.titleColorValue);
-    final plainPreview = prompt.plainText.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final variableCount = RegExp(r'\[[^\]]+\]').allMatches(plainPreview).length;
-    final contentLength = plainPreview.length;
-    final visibleTagCount = isGrid ? 2 : 4;
-    final hiddenTagCount = prompt.tags.length > visibleTagCount
-        ? prompt.tags.length - visibleTagCount
-        : 0;
-    final contentPadding = isGrid
-        ? const EdgeInsets.fromLTRB(16, 16, 16, 14)
-        : const EdgeInsets.fromLTRB(22, 20, 22, 18);
-    final previewPadding = isGrid
-        ? const EdgeInsets.fromLTRB(16, 16, 16, 14)
-        : const EdgeInsets.fromLTRB(18, 18, 18, 16);
-    final titleStyle =
-        (isGrid
-                ? Theme.of(context).textTheme.titleSmall
-                : Theme.of(context).textTheme.titleMedium)
-            ?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: titleColor,
-              height: 1.25,
-            );
-    final preview = Container(
-      width: double.infinity,
-      padding: previewPadding,
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withOpacity(
-          isGrid ? 0.45 : 0.38,
-        ),
-        borderRadius: BorderRadius.circular(isGrid ? 24 : 26),
-        border: Border.all(
-          color: scheme.outlineVariant.withOpacity(isGrid ? 0.18 : 0.14),
-        ),
-      ),
-      child: Text.rich(
-        TextSpan(
-          children: prompt.segments
-              .map(
-                (segment) => TextSpan(
-                  text: segment.text,
-                  style: TextStyle(
-                    color: Color(segment.colorValue),
-                    height: isGrid ? 1.55 : 1.7,
-                    fontSize: isGrid ? 14 : 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        maxLines: isGrid ? 8 : 10,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
+  bool _isLocked() {
+    final titleLower = prompt.title.toLowerCase();
+    if (titleLower.contains('잠금') || titleLower.contains('잠긴')) {
+      return true;
+    }
+    if (prompt.tags.any((tag) {
+      final tagLower = tag.toLowerCase();
+      return tagLower == '잠금' || tagLower == 'lock';
+    })) {
+      return true;
+    }
+    return false;
+  }
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: contentPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Flexible(
-                  child: Text(
-                    '($folderName) ',
-                    style: titleStyle?.copyWith(
-                      color: scheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    prompt.title,
-                    style: titleStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (headerActions != null) ...[
-                  const SizedBox(width: 4),
-                  headerActions!,
-                ],
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  onSelected: (val) {
-                    if (val == 'copy') onCopy();
-                    if (val == 'edit') onEdit();
-                    if (val == 'duplicate') onDuplicate();
-                    if (val == 'delete') onDelete();
-                  },
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(value: 'copy', child: Text('복사')),
-                    PopupMenuItem(value: 'edit', child: Text('편집')),
-                    PopupMenuItem(value: 'duplicate', child: Text('복제')),
-                    PopupMenuItem(value: 'delete', child: Text('삭제')),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: isGrid ? 12 : 14),
-            if (isGrid) Expanded(child: preview) else preview,
-            SizedBox(height: isGrid ? 12 : 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (variableCount > 0)
-                  _PromptCapsule(
-                    icon: Icons.tune_rounded,
-                    label: '변수 $variableCount개',
-                    backgroundColor: scheme.tertiaryContainer,
-                    foregroundColor: scheme.tertiary,
-                  ),
-                ...prompt.tags.take(visibleTagCount).map(
-                  (tag) => _PromptCapsule(
-                    icon: Icons.sell_outlined,
-                    label: '#$tag',
-                    backgroundColor: scheme.surfaceContainerHighest.withOpacity(
-                      0.8,
-                    ),
-                    foregroundColor: scheme.onSurfaceVariant,
-                  ),
-                ),
-                if (hiddenTagCount > 0)
-                  _PromptCapsule(
-                    label: '+$hiddenTagCount',
-                    backgroundColor: scheme.surfaceContainerHighest.withOpacity(
-                      0.8,
-                    ),
-                    foregroundColor: scheme.onSurfaceVariant,
-                  ),
-                _PromptCapsule(
-                  icon: Icons.subject_rounded,
-                  label: '${contentLength}자',
-                  backgroundColor: scheme.surface,
-                  foregroundColor: scheme.onSurfaceVariant,
-                ),
-              ],
-            ),
-            SizedBox(height: isGrid ? 10 : 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '수정 ${formatDate(prompt.updatedAt)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontSize: isGrid ? 11 : 12,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                _PromptActionButton(
-                  onPressed: onCopy,
-                  tooltip: '복사',
-                  icon: Icons.content_copy_rounded,
-                  compact: isGrid,
-                ),
-                const SizedBox(width: 8),
-                _PromptActionButton(
-                  onPressed: onEdit,
-                  tooltip: '편집',
-                  icon: Icons.edit_outlined,
-                  compact: isGrid,
-                ),
-              ],
-            ),
-          ],
-        ),
+  String _formatMonthDay(DateTime dt) {
+    return '${dt.month}월 ${dt.day}일';
+  }
+
+  void _showActionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1C1C1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final textStyle = TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  prompt.title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.copy_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                title: Text('복사', style: textStyle),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onCopy();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.edit_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                title: Text('편집', style: textStyle),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onEdit();
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.control_point_duplicate_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                title: Text('복제', style: textStyle),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onDuplicate();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                title: const Text('삭제', style: TextStyle(color: Colors.red, fontSize: 16)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onDelete();
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
-}
-
-class _PromptCapsule extends StatelessWidget {
-  const _PromptCapsule({
-    required this.label,
-    required this.backgroundColor,
-    required this.foregroundColor,
-    this.icon,
-  });
-
-  final IconData? icon;
-  final String label;
-  final Color backgroundColor;
-  final Color foregroundColor;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isLocked = _isLocked();
+
+    final titleColor = isDark ? Colors.white : Colors.black;
+    final dateColor = isDark ? Colors.white60 : Colors.black54;
+
+    final titleStyle = TextStyle(
+      fontSize: 15.0,
+      fontWeight: FontWeight.bold,
+      color: titleColor,
+    );
+
+    final dateStyle = TextStyle(
+      fontSize: 12.0,
+      color: dateColor,
+    );
+
+    return GestureDetector(
+      onTap: onCopy,
+      onLongPress: () => _showActionSheet(context),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 14, color: foregroundColor),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w700,
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              padding: const EdgeInsets.all(16),
+              clipBehavior: Clip.antiAlias,
+              child: isLocked
+                  ? Center(
+                      child: Icon(
+                        Icons.lock_rounded,
+                        size: 40,
+                        color: isDark ? Colors.white30 : Colors.black26,
+                      ),
+                    )
+                  : Align(
+                      alignment: Alignment.topLeft,
+                      child: Text.rich(
+                        TextSpan(
+                          children: prompt.segments
+                              .map(
+                                (segment) => TextSpan(
+                                  text: segment.text,
+                                  style: TextStyle(
+                                    color: Color(segment.colorValue),
+                                    height: 1.4,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        maxLines: 6,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
             ),
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              prompt.title,
+              style: titleStyle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _formatMonthDay(prompt.updatedAt),
+            style: dateStyle,
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -626,43 +574,7 @@ class _PromptCapsule extends StatelessWidget {
   }
 }
 
-class _PromptActionButton extends StatelessWidget {
-  const _PromptActionButton({
-    required this.onPressed,
-    required this.tooltip,
-    required this.icon,
-    required this.compact,
-  });
 
-  final VoidCallback onPressed;
-  final String tooltip;
-  final IconData icon;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          padding: EdgeInsets.all(compact ? 8 : 10),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHighest.withOpacity(0.55),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            icon,
-            size: compact ? 18 : 20,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class EmptyStateCard extends StatelessWidget {
   const EmptyStateCard({super.key, required this.onCreatePrompt});
@@ -806,15 +718,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
     }
   }
 
-  Future<void> _pickTitleColor() async {
-    final color = await showDialog<Color>(
-      context: context,
-      builder: (ctx) => ColorPickerDialog(presets: _presetColors),
-    );
 
-    if (color == null) return;
-    setState(() => _titleColorValue = color.value);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -838,37 +742,6 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
               TextField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: '제목'),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '제목 색상',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    ..._presetColors.map(
-                      (color) => _ColorDot(
-                        colorValue: color.value,
-                        isSelected: _titleColorValue == color.value,
-                        onTap: () =>
-                            setState(() => _titleColorValue = color.value),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _pickTitleColor,
-                      tooltip: '색상 선택',
-                      icon: const Icon(Icons.palette_outlined),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
@@ -1170,5 +1043,159 @@ class SettingsSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class FolderCard extends StatelessWidget {
+  const FolderCard({
+    super.key,
+    required this.name,
+    required this.promptCount,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String name;
+  final int promptCount;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Cover color of the folder
+    final coverColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA);
+    final borderColor = isSelected 
+        ? scheme.primary 
+        : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1));
+    final labelColor = isDark ? Colors.white : Colors.black;
+    final countColor = isDark ? Colors.white60 : Colors.black54;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 110,
+        height: 90,
+        margin: const EdgeInsets.only(right: 12),
+        child: Stack(
+          children: [
+            // Back paper tab sticking out
+            Positioned(
+              top: 0,
+              left: 10,
+              right: 10,
+              child: Container(
+                height: 30,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.grey[300],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(6),
+                    topRight: Radius.circular(6),
+                  ),
+                ),
+              ),
+            ),
+            // Front cover
+            Positioned.fill(
+              top: 8,
+              child: CustomPaint(
+                painter: FolderFrontPainter(
+                  color: coverColor,
+                  borderColor: borderColor,
+                  borderWidth: isSelected ? 2.0 : 1.0,
+                ),
+              ),
+            ),
+            // Prompt count top-left of front cover
+            Positioned(
+              top: 30, // folder body starts at top 8 + painter offset 20 = 28
+              left: 12,
+              child: Text(
+                promptCount.toString(),
+                style: TextStyle(
+                  color: countColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            // Folder name bottom-left of front cover
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 10,
+              child: Text(
+                name,
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  height: 1.2,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class FolderFrontPainter extends CustomPainter {
+  FolderFrontPainter({
+    required this.color,
+    this.borderColor,
+    this.borderWidth = 1.5,
+  });
+
+  final Color color;
+  final Color? borderColor;
+  final double borderWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final path = Path();
+    const double r = 8.0;
+
+    // Drawing folder cover with tab on left (y = 10), lower section on right (y = 20)
+    path.moveTo(0, 10 + r);
+    path.quadraticBezierTo(0, 10, r, 10);
+    path.lineTo(w * 0.45 - r, 10);
+    path.quadraticBezierTo(w * 0.45, 10, w * 0.48, 10 + r * 0.5);
+    path.lineTo(w * 0.52, 20 - r * 0.5);
+    path.quadraticBezierTo(w * 0.54, 20, w * 0.54 + r, 20);
+    path.lineTo(w - r, 20);
+    path.quadraticBezierTo(w, 20, w, 20 + r);
+    path.lineTo(w, h - r);
+    path.quadraticBezierTo(w, h, w - r, h);
+    path.lineTo(r, h);
+    path.quadraticBezierTo(0, h, 0, h - r);
+    path.close();
+
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path, paint);
+
+    if (borderColor != null) {
+      final borderPaint = Paint()
+        ..color = borderColor!
+        ..strokeWidth = borderWidth
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(path, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant FolderFrontPainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.borderColor != borderColor ||
+        oldDelegate.borderWidth != borderWidth;
   }
 }

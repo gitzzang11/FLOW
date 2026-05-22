@@ -28,6 +28,7 @@ class _FlowShellState extends State<FlowShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   String _selectedFolderId = '';
   String _searchQuery = '';
+  bool _isSearching = false;
   final _selectedTags = <String>{};
   late final TextEditingController _searchController;
 
@@ -596,6 +597,63 @@ class _FlowShellState extends State<FlowShell> {
     );
   }
 
+  String _getMonthGroupName(DateTime date) {
+    final now = DateTime.now();
+    if (date.year == now.year && date.month == now.month) {
+      return '이번 달';
+    } else if (date.year == now.year) {
+      return '${date.month}월';
+    } else {
+      return '${date.year}년 ${date.month}월';
+    }
+  }
+
+  Widget _buildFoldersHorizontalList() {
+    final folders = widget.store.folders;
+    final prompts = widget.store.prompts;
+
+    return SizedBox(
+      height: 110,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        scrollDirection: Axis.horizontal,
+        itemCount: folders.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return FolderCard(
+              name: '전체',
+              promptCount: prompts.length,
+              isSelected: _selectedFolderId.isEmpty,
+              onTap: () {
+                setState(() {
+                  _selectedFolderId = '';
+                });
+              },
+            );
+          }
+
+          final folder = folders[index - 1];
+          final count = prompts.where((p) => p.folderId == folder.id).length;
+
+          return FolderCard(
+            name: folder.name,
+            promptCount: count,
+            isSelected: _selectedFolderId == folder.id,
+            onTap: () {
+              setState(() {
+                if (_selectedFolderId == folder.id) {
+                  _selectedFolderId = '';
+                } else {
+                  _selectedFolderId = folder.id;
+                }
+              });
+            },
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width > 900;
@@ -611,63 +669,145 @@ class _FlowShellState extends State<FlowShell> {
               .toList()
             ..sort());
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Group prompts by month
+    final monthGroups = <String, List<PromptItem>>{};
+    for (final prompt in prompts) {
+      final groupName = _getMonthGroupName(prompt.updatedAt);
+      monthGroups.putIfAbsent(groupName, () => []).add(prompt);
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
         titleSpacing: 16,
-        title: TextField(
-          controller: _searchController,
-          onChanged: (value) => setState(() {
-            _searchQuery = value;
-            if (_searchQuery.isEmpty) {
-              _selectedTags.clear();
-            }
-          }),
-          decoration: InputDecoration(
-            hintText: '제목, 태그, 내용 검색',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _searchQuery.isEmpty
-                ? null
-                : IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        _searchQuery = '';
-                        _selectedTags.clear();
-                      });
-                    },
-                    icon: const Icon(Icons.close_rounded),
+        leading: _isSearching
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () {
+                  setState(() {
+                    _isSearching = false;
+                    _searchQuery = '';
+                    _searchController.clear();
+                    _selectedTags.clear();
+                  });
+                },
+              )
+            : IconButton(
+                icon: const Icon(Icons.menu_rounded),
+                onPressed: isWide
+                    ? null
+                    : () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                onChanged: (value) => setState(() {
+                  _searchQuery = value;
+                  if (_searchQuery.isEmpty) {
+                    _selectedTags.clear();
+                  }
+                }),
+                decoration: InputDecoration(
+                  hintText: '제목, 태그, 내용 검색',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _searchQuery.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                              _selectedTags.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
                   ),
-            filled: true,
-            fillColor: Theme.of(context).colorScheme.surface,
-            contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(74),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: FolderQuickAccessBar(
-              folders: widget.store.folders,
-              prompts: widget.store.prompts,
-              selectedFolderId: _selectedFolderId,
-              onSelectFolder: (id) => setState(() => _selectedFolderId = id),
-              onOpenDrawer: isWide
-                  ? null
-                  : () => _scaffoldKey.currentState?.openDrawer(),
-            ),
-          ),
-        ),
+                ),
+              )
+            : const Text(
+                '폴더',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+              ),
+        actions: _isSearching
+            ? []
+            : [
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _isSearching = true;
+                    });
+                  },
+                  icon: const Icon(Icons.search_rounded),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (value) {
+                    if (value == 'sort_newest') _changeSortMode(PromptSortMode.newest);
+                    if (value == 'sort_oldest') _changeSortMode(PromptSortMode.oldest);
+                    if (value == 'sort_title') _changeSortMode(PromptSortMode.title);
+                    if (value == 'sort_custom') _changeSortMode(PromptSortMode.custom);
+                    if (value == 'toggle_layout') {
+                      final currentMode = widget.store.settings.promptViewMode;
+                      final nextMode = currentMode == PromptViewMode.list
+                          ? PromptViewMode.grid
+                          : PromptViewMode.list;
+                      _persistSettings(
+                        widget.store.settings.copyWith(
+                          promptViewMode: nextMode,
+                        ),
+                      );
+                    }
+                    if (value == 'add_folder') _showFolderDialog();
+                    if (value == 'settings') _openSettings();
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'toggle_layout',
+                      child: Text('레이아웃 전환'),
+                    ),
+                    const PopupMenuDivider(),
+                    CheckedPopupMenuItem(
+                      checked: widget.store.settings.promptSortMode == PromptSortMode.newest,
+                      value: 'sort_newest',
+                      child: const Text('최신순 정렬'),
+                    ),
+                    CheckedPopupMenuItem(
+                      checked: widget.store.settings.promptSortMode == PromptSortMode.oldest,
+                      value: 'sort_oldest',
+                      child: const Text('오래된순 정렬'),
+                    ),
+                    CheckedPopupMenuItem(
+                      checked: widget.store.settings.promptSortMode == PromptSortMode.title,
+                      value: 'sort_title',
+                      child: const Text('이름순 정렬'),
+                    ),
+                    CheckedPopupMenuItem(
+                      checked: widget.store.settings.promptSortMode == PromptSortMode.custom,
+                      value: 'sort_custom',
+                      child: const Text('직접 정렬'),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'add_folder',
+                      child: Text('폴더 추가'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'settings',
+                      child: Text('설정'),
+                    ),
+                  ],
+                ),
+              ],
       ),
       drawer: isWide
           ? null
@@ -698,130 +838,232 @@ class _FlowShellState extends State<FlowShell> {
               ),
             ),
           Expanded(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: PopupMenuButton<PromptSortMode>(
-                      tooltip: '정렬',
-                      onSelected: _changeSortMode,
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: PromptSortMode.newest,
-                          child: Text('최신순'),
-                        ),
-                        PopupMenuItem(
-                          value: PromptSortMode.oldest,
-                          child: Text('오래된순'),
-                        ),
-                        PopupMenuItem(
-                          value: PromptSortMode.title,
-                          child: Text('이름순'),
-                        ),
-                        PopupMenuItem(
-                          value: PromptSortMode.custom,
-                          child: Text('직접 정렬'),
-                        ),
-                      ],
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .outlineVariant
-                                .withOpacity(0.22),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.sort_rounded, size: 18),
-                            const SizedBox(width: 8),
-                            Text(_sortModeLabel),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.expand_more_rounded,
-                              size: 18,
-                            ),
-                          ],
-                        ),
-                      ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final is2Column = widget.store.settings.promptViewMode == PromptViewMode.grid;
+                final columnCount = is2Column ? 2 : (constraints.maxWidth > 900 ? 4 : (constraints.maxWidth > 600 ? 3 : 2));
+                const crossAxisSpacing = 16.0;
+                const mainAxisSpacing = 16.0;
+                const padding = 16.0;
+                final totalSpacing = (columnCount - 1) * crossAxisSpacing + padding * 2;
+                final itemWidth = (constraints.maxWidth - totalSpacing) / columnCount;
+                final mainAxisExtent = itemWidth + 60.0;
+                final gridExtent = constraints.maxWidth < 640 ? constraints.maxWidth : 380.0;
+
+                return CustomScrollView(
+                  slivers: [
+                    // Horizontal folders list
+                    SliverToBoxAdapter(
+                      child: _buildFoldersHorizontalList(),
                     ),
-                  ),
-                ),
-                if (_searchQuery.isNotEmpty && visibleTags.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: visibleTags
-                            .map(
-                              (tag) => FilterChip(
-                                label: Text('#$tag'),
-                                selected: _selectedTags.contains(tag),
-                                onSelected: (_) => setState(
-                                  () => _selectedTags.contains(tag)
-                                      ? _selectedTags.remove(tag)
-                                      : _selectedTags.add(tag),
+
+                    // Layout toggle and sorting controls
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  final currentMode = widget.store.settings.promptViewMode;
+                                  final nextMode = currentMode == PromptViewMode.list
+                                      ? PromptViewMode.grid
+                                      : PromptViewMode.list;
+                                  _persistSettings(
+                                    widget.store.settings.copyWith(
+                                      promptViewMode: nextMode,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).cardColor,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant
+                                          .withOpacity(0.22),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        widget.store.settings.promptViewMode == PromptViewMode.list
+                                            ? Icons.grid_view_rounded
+                                            : Icons.grid_on_rounded,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        widget.store.settings.promptViewMode == PromptViewMode.list
+                                            ? '원래 배열'
+                                            : '2열 배열',
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            )
-                            .toList(),
+                              const SizedBox(width: 12),
+                              PopupMenuButton<PromptSortMode>(
+                                tooltip: '정렬',
+                                onSelected: _changeSortMode,
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: PromptSortMode.newest,
+                                    child: Text('최신순'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: PromptSortMode.oldest,
+                                    child: Text('오래된순'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: PromptSortMode.title,
+                                    child: Text('이름순'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: PromptSortMode.custom,
+                                    child: Text('직접 정렬'),
+                                  ),
+                                ],
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).cardColor,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant
+                                          .withOpacity(0.22),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.sort_rounded, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text(_sortModeLabel),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        Icons.expand_more_rounded,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                Expanded(
-                  child: prompts.isEmpty
-                      ? EmptyStateCard(onCreatePrompt: () => _openEditor())
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final gridExtent = constraints.maxWidth < 640
-                                ? constraints.maxWidth
-                                : 380.0;
-                            final cardHeight = constraints.maxWidth < 640
-                                ? 350.0
-                                : 320.0;
 
-                            return GridView.builder(
-                              padding: const EdgeInsets.all(16),
-                              gridDelegate:
-                                  SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: gridExtent,
-                                    mainAxisSpacing: 18,
-                                    crossAxisSpacing: 18,
-                                    mainAxisExtent: cardHeight,
-                                  ),
-                              itemCount: prompts.length,
-                              itemBuilder: (context, idx) =>
-                                  _buildPromptCard(
-                                    prompt: prompts[idx],
-                                    index: idx,
-                                    totalCount: prompts.length,
-                                    isGrid: true,
-                                  ),
-                            );
-                          },
+                    if (_searchQuery.isNotEmpty && visibleTags.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: visibleTags
+                                  .map(
+                                    (tag) => FilterChip(
+                                      label: Text('#$tag'),
+                                      selected: _selectedTags.contains(tag),
+                                      onSelected: (_) => setState(
+                                        () => _selectedTags.contains(tag)
+                                            ? _selectedTags.remove(tag)
+                                            : _selectedTags.add(tag),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
                         ),
-                ),
-              ],
+                      ),
+
+                    if (prompts.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: EmptyStateCard(onCreatePrompt: () => _openEditor()),
+                      )
+                    else
+                      for (final entry in monthGroups.entries) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                            child: Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverGrid(
+                            gridDelegate: is2Column
+                                ? SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: mainAxisSpacing,
+                                    crossAxisSpacing: crossAxisSpacing,
+                                    mainAxisExtent: mainAxisExtent,
+                                  )
+                                : SliverGridDelegateWithMaxCrossAxisExtent(
+                                    maxCrossAxisExtent: gridExtent,
+                                    mainAxisSpacing: mainAxisSpacing,
+                                    crossAxisSpacing: crossAxisSpacing,
+                                    mainAxisExtent: mainAxisExtent,
+                                  ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, idx) {
+                                final prompt = entry.value[idx];
+                                final overallIdx = prompts.indexOf(prompt);
+                                return _buildPromptCard(
+                                  prompt: prompt,
+                                  index: overallIdx,
+                                  totalCount: prompts.length,
+                                  isGrid: true,
+                                );
+                              },
+                              childCount: entry.value.length,
+                            ),
+                          ),
+                        ),
+                      ],
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 80),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openEditor(),
-        child: const Icon(Icons.add),
+        backgroundColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
+        foregroundColor: isDark ? Colors.white : Colors.black,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.edit_outlined),
       ),
     );
   }
