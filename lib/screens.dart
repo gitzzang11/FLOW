@@ -157,6 +157,7 @@ class _FlowShellState extends State<FlowShell> {
           );
           widget.onStoreChanged();
         },
+        settings: widget.store.settings,
       ),
     );
     if (result == null) return;
@@ -209,11 +210,17 @@ class _FlowShellState extends State<FlowShell> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              triggerInteractionHaptic(widget.store.settings);
+              Navigator.pop(ctx);
+            },
             child: const Text('취소'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            onPressed: () {
+              triggerInteractionHaptic(widget.store.settings);
+              Navigator.pop(ctx, controller.text.trim());
+            },
             child: const Text('확인'),
           ),
         ],
@@ -283,6 +290,7 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _copy(PromptItem p) async {
+    triggerInteractionHaptic(widget.store.settings);
     await Clipboard.setData(ClipboardData(text: p.plainText));
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -320,12 +328,16 @@ class _FlowShellState extends State<FlowShell> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              triggerInteractionHaptic(widget.store.settings);
+              Navigator.pop(ctx);
+            },
             child: const Text('취소'),
           ),
           FilledButton(
             onPressed: () {
               if (controller.text.length == 4) {
+                triggerInteractionHaptic(widget.store.settings);
                 Navigator.pop(ctx, controller.text);
               }
             },
@@ -346,6 +358,7 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _handleBackup() async {
+    triggerInteractionHaptic(widget.store.settings);
     try {
       final backupBytes = Uint8List.fromList(
         utf8.encode(widget.store.exportToJson()),
@@ -369,6 +382,7 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _handleRestore() async {
+    triggerInteractionHaptic(widget.store.settings);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
@@ -385,11 +399,17 @@ class _FlowShellState extends State<FlowShell> {
             content: const Text('현재 데이터는 백업 파일 내용으로 교체됩니다. 계속할까요?'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
+                onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  Navigator.pop(ctx, false);
+                },
                 child: const Text('취소'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
+                onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  Navigator.pop(ctx, true);
+                },
                 child: const Text('불러오기'),
               ),
             ],
@@ -420,17 +440,25 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   void _openSettings() {
+    triggerInteractionHaptic(widget.store.settings);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      showDragHandle: true,
       builder: (ctx) => SettingsSheet(
         settings: widget.store.settings,
         onToggleTheme: (v) {
+          triggerInteractionHaptic(widget.store.settings);
           widget.store.settings = widget.store.settings.copyWith(darkMode: v);
           widget.onStoreChanged();
           Navigator.pop(context);
         },
         onToggleLock: (v) async {
+          triggerInteractionHaptic(widget.store.settings);
           if (v && widget.store.settings.pinCode.isEmpty) {
             Navigator.pop(context);
             final pin = await _showPinDialog(title: 'PIN 설정');
@@ -450,6 +478,7 @@ class _FlowShellState extends State<FlowShell> {
           }
         },
         onChangePin: () async {
+          triggerInteractionHaptic(widget.store.settings);
           Navigator.pop(context);
           final pin = await _showPinDialog(title: 'PIN 변경');
           if (pin != null) {
@@ -465,11 +494,19 @@ class _FlowShellState extends State<FlowShell> {
           }
         },
         onLockNow: () {
+          triggerInteractionHaptic(widget.store.settings);
           Navigator.pop(context);
           widget.onRequireRelock();
         },
         onBackup: _handleBackup,
         onRestore: _handleRestore,
+        onToggleHaptic: (v) {
+          if (v) {
+            HapticFeedback.lightImpact();
+          }
+          widget.store.settings = widget.store.settings.copyWith(hapticEnabled: v);
+          widget.onStoreChanged();
+        },
       ),
     );
   }
@@ -502,6 +539,7 @@ class _FlowShellState extends State<FlowShell> {
               promptCount: prompts.length,
               isSelected: _selectedFolderId.isEmpty,
               onTap: () {
+                triggerInteractionHaptic(widget.store.settings);
                 setState(() {
                   _selectedFolderId = '';
                 });
@@ -517,6 +555,7 @@ class _FlowShellState extends State<FlowShell> {
             promptCount: count,
             isSelected: _selectedFolderId == folder.id,
             onTap: () {
+              triggerInteractionHaptic(widget.store.settings);
               setState(() {
                 if (_selectedFolderId == folder.id) {
                   _selectedFolderId = '';
@@ -563,6 +602,7 @@ class _FlowShellState extends State<FlowShell> {
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
                   setState(() {
                     _isSearching = false;
                     _searchQuery = '';
@@ -575,7 +615,10 @@ class _FlowShellState extends State<FlowShell> {
                 icon: const Icon(Icons.menu_rounded),
                 onPressed: isWide
                     ? null
-                    : () => _scaffoldKey.currentState?.openDrawer(),
+                    : () {
+                        triggerInteractionHaptic(widget.store.settings);
+                        _scaffoldKey.currentState?.openDrawer();
+                      },
               ),
         title: _isSearching
             ? TextField(
@@ -620,6 +663,7 @@ class _FlowShellState extends State<FlowShell> {
             : [
                 IconButton(
                   onPressed: () {
+                    triggerInteractionHaptic(widget.store.settings);
                     setState(() {
                       _isSearching = true;
                     });
@@ -634,31 +678,55 @@ class _FlowShellState extends State<FlowShell> {
               ],
       ),
       drawer: isWide
-          ? null
-          : Drawer(
-              child: FolderSidebar(
-                folders: widget.store.folders,
-                prompts: widget.store.prompts,
-                selectedFolderId: _selectedFolderId,
-                onSelectFolder: (id) => setState(() => _selectedFolderId = id),
-                onCreateFolder: _showFolderDialog,
-                onEditFolder: (f) => _showFolderDialog(folder: f),
-                onDeleteFolder: _deleteFolder,
+            ? null
+            : Drawer(
+                child: FolderSidebar(
+                  folders: widget.store.folders,
+                  prompts: widget.store.prompts,
+                  selectedFolderId: _selectedFolderId,
+                  onSelectFolder: (id) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    setState(() => _selectedFolderId = id);
+                  },
+                  onCreateFolder: () {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _showFolderDialog();
+                  },
+                  onEditFolder: (f) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _showFolderDialog(folder: f);
+                  },
+                  onDeleteFolder: (f) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _deleteFolder(f);
+                  },
+                ),
               ),
-            ),
       body: Row(
         children: [
           if (isWide)
             SizedBox(
-              width: 300,
+              width: 280,
               child: FolderSidebar(
                 folders: widget.store.folders,
                 prompts: widget.store.prompts,
                 selectedFolderId: _selectedFolderId,
-                onSelectFolder: (id) => setState(() => _selectedFolderId = id),
-                onCreateFolder: _showFolderDialog,
-                onEditFolder: (f) => _showFolderDialog(folder: f),
-                onDeleteFolder: _deleteFolder,
+                onSelectFolder: (id) {
+                  triggerInteractionHaptic(widget.store.settings);
+                  setState(() => _selectedFolderId = id);
+                },
+                onCreateFolder: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  _showFolderDialog();
+                },
+                onEditFolder: (f) {
+                  triggerInteractionHaptic(widget.store.settings);
+                  _showFolderDialog(folder: f);
+                },
+                onDeleteFolder: (f) {
+                  triggerInteractionHaptic(widget.store.settings);
+                  _deleteFolder(f);
+                },
               ),
             ),
           Expanded(
@@ -687,7 +755,10 @@ class _FlowShellState extends State<FlowShell> {
                           alignment: Alignment.centerRight,
                           child: PopupMenuButton<PromptSortMode>(
                             tooltip: '정렬',
-                            onSelected: _changeSortMode,
+                            onSelected: (mode) {
+                              triggerInteractionHaptic(widget.store.settings);
+                              _changeSortMode(mode);
+                            },
                             itemBuilder: (context) => const [
                               PopupMenuItem(
                                 value: PromptSortMode.newest,
@@ -818,7 +889,10 @@ class _FlowShellState extends State<FlowShell> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditor(),
+        onPressed: () {
+          triggerInteractionHaptic(widget.store.settings);
+          _openEditor();
+        },
         backgroundColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
         foregroundColor: isDark ? Colors.white : Colors.black,
         shape: const CircleBorder(),
@@ -829,10 +903,11 @@ class _FlowShellState extends State<FlowShell> {
 }
 
 class LockScreen extends StatefulWidget {
-  const LockScreen({super.key, required this.pin, required this.onUnlock});
+  const LockScreen({super.key, required this.pin, required this.onUnlock, required this.settings});
 
   final String pin;
   final VoidCallback onUnlock;
+  final AppSettings settings;
 
   @override
   State<LockScreen> createState() => _LockScreenState();
@@ -850,6 +925,7 @@ class _LockScreenState extends State<LockScreen> {
   }
 
   void _check() {
+    triggerInteractionHaptic(widget.settings);
     if (_isUnlocking) return;
 
     FocusScope.of(context).unfocus();

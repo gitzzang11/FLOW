@@ -615,6 +615,7 @@ class PromptEditorDialog extends StatefulWidget {
     this.initialFolderId = '',
     required this.favoriteColors,
     required this.onToggleFavorite,
+    required this.settings,
   });
 
   final List<FolderItem> folders;
@@ -622,6 +623,7 @@ class PromptEditorDialog extends StatefulWidget {
   final String initialFolderId;
   final List<int> favoriteColors;
   final ValueChanged<int> onToggleFavorite;
+  final AppSettings settings;
 
   @override
   State<PromptEditorDialog> createState() => _PromptEditorDialogState();
@@ -676,6 +678,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   }
 
   void _save() {
+    triggerInteractionHaptic(widget.settings);
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
@@ -704,7 +707,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   Future<void> _pickMoreColors(int segmentIdx) async {
     final color = await showDialog<Color>(
       context: context,
-      builder: (ctx) => ColorPickerDialog(presets: _presetColors),
+      builder: (ctx) => ColorPickerDialog(presets: _presetColors, settings: widget.settings),
     );
 
     if (color != null) {
@@ -726,7 +729,10 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
           title: Text(widget.prompt == null ? '프롬프트 만들기' : '프롬프트 편집'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                triggerInteractionHaptic(widget.settings);
+                Navigator.pop(context);
+              },
               child: const Text('취소'),
             ),
             FilledButton(onPressed: _save, child: const Text('저장')),
@@ -770,14 +776,17 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                   ),
                   const Spacer(),
                   IconButton(
-                    onPressed: () => setState(
-                      () => _segments.add(
-                        PromptSegment(
-                          text: '',
-                          colorValue: AppPalette.ink.value,
+                    onPressed: () {
+                      triggerInteractionHaptic(widget.settings);
+                      setState(
+                        () => _segments.add(
+                          PromptSegment(
+                            text: '',
+                            colorValue: AppPalette.ink.value,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                     icon: const Icon(Icons.add_circle_outline),
                   ),
                 ],
@@ -802,11 +811,14 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                                 (palette) => _ColorDot(
                                   colorValue: palette.value,
                                   isSelected: seg.colorValue == palette.value,
-                                  onTap: () => setState(
-                                    () => _segments[idx] = seg.copyWith(
-                                      colorValue: palette.value,
-                                    ),
-                                  ),
+                                  onTap: () {
+                                    triggerInteractionHaptic(widget.settings);
+                                    setState(
+                                      () => _segments[idx] = seg.copyWith(
+                                        colorValue: palette.value,
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                               if (widget.favoriteColors.isNotEmpty) ...[
@@ -822,11 +834,14 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                                   (colorValue) => _ColorDot(
                                     colorValue: colorValue,
                                     isSelected: seg.colorValue == colorValue,
-                                    onTap: () => setState(
-                                      () => _segments[idx] = seg.copyWith(
-                                        colorValue: colorValue,
-                                      ),
-                                    ),
+                                    onTap: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      setState(
+                                        () => _segments[idx] = seg.copyWith(
+                                          colorValue: colorValue,
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -835,7 +850,10 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                                   Icons.palette_outlined,
                                   size: 20,
                                 ),
-                                onPressed: () => _pickMoreColors(idx),
+                                onPressed: () {
+                                  triggerInteractionHaptic(widget.settings);
+                                  _pickMoreColors(idx);
+                                },
                                 tooltip: '다른 색상 선택',
                               ),
                               const SizedBox(width: 8),
@@ -853,17 +871,21 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                                       : null,
                                 ),
                                 onPressed: () {
+                                  triggerInteractionHaptic(widget.settings);
                                   widget.onToggleFavorite(seg.colorValue);
                                   setState(() {});
                                 },
                                 tooltip: '즐겨찾기 추가',
                               ),
                               IconButton(
-                                onPressed: () => setState(() {
-                                  if (_segments.length > 1) {
-                                    _segments.removeAt(idx);
-                                  }
-                                }),
+                                onPressed: () {
+                                  triggerInteractionHaptic(widget.settings);
+                                  setState(() {
+                                    if (_segments.length > 1) {
+                                      _segments.removeAt(idx);
+                                    }
+                                  });
+                                },
                                 icon: const Icon(
                                   Icons.delete_outline,
                                   size: 20,
@@ -938,9 +960,10 @@ class _ColorDot extends StatelessWidget {
 }
 
 class ColorPickerDialog extends StatefulWidget {
-  const ColorPickerDialog({super.key, required this.presets});
+  const ColorPickerDialog({super.key, required this.presets, required this.settings});
 
   final List<Color> presets;
+  final AppSettings settings;
 
   @override
   State<ColorPickerDialog> createState() => _ColorPickerDialogState();
@@ -1029,7 +1052,10 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                 itemBuilder: (ctx, idx) {
                   final color = widget.presets[idx];
                   return GestureDetector(
-                    onTap: () => Navigator.pop(ctx, color),
+                    onTap: () {
+                      triggerInteractionHaptic(widget.settings);
+                      Navigator.pop(ctx, color);
+                    },
                     child: Container(
                       decoration: BoxDecoration(
                         color: color,
@@ -1104,13 +1130,19 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            triggerInteractionHaptic(widget.settings);
+            Navigator.pop(context);
+          },
           child: const Text('취소'),
         ),
         FilledButton(
           onPressed: _customColor == null
               ? null
-              : () => Navigator.pop(context, _customColor),
+              : () {
+                  triggerInteractionHaptic(widget.settings);
+                  Navigator.pop(context, _customColor);
+                },
           child: const Text('적용'),
         ),
       ],
@@ -1128,6 +1160,7 @@ class SettingsSheet extends StatelessWidget {
     required this.onLockNow,
     required this.onBackup,
     required this.onRestore,
+    required this.onToggleHaptic,
   });
 
   final AppSettings settings;
@@ -1137,6 +1170,7 @@ class SettingsSheet extends StatelessWidget {
   final VoidCallback onLockNow;
   final VoidCallback onBackup;
   final VoidCallback onRestore;
+  final ValueChanged<bool> onToggleHaptic;
 
   @override
   Widget build(BuildContext context) {
@@ -1149,6 +1183,11 @@ class SettingsSheet extends StatelessWidget {
             title: const Text('다크 모드'),
             value: settings.darkMode,
             onChanged: onToggleTheme,
+          ),
+          SwitchListTile(
+            title: const Text('터치 진동'),
+            value: settings.hapticEnabled,
+            onChanged: onToggleHaptic,
           ),
           SwitchListTile(
             title: const Text('앱 잠금'),

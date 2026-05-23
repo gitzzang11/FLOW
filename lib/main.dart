@@ -137,6 +137,7 @@ class _FlowAppState extends State<FlowApp> {
               key: const ValueKey('lock-screen'),
               pin: settings.pinCode,
               onUnlock: _handleUnlock,
+              settings: settings,
             )
           : FlowShell(
               key: const ValueKey('flow-shell'),

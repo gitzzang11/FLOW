@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 enum AppPalette {
   ink(0xFF183153),
   coral(0xFFE85D5D),
@@ -178,6 +180,7 @@ class AppSettings {
     this.promptSortMode = PromptSortMode.newest,
     this.promptViewMode = PromptViewMode.grid,
     this.customPromptOrder = const [],
+    this.hapticEnabled = true,
   });
 
   final bool darkMode;
@@ -187,6 +190,7 @@ class AppSettings {
   final PromptSortMode promptSortMode;
   final PromptViewMode promptViewMode;
   final List<String> customPromptOrder;
+  final bool hapticEnabled;
 
   AppSettings copyWith({
     bool? darkMode,
@@ -196,6 +200,7 @@ class AppSettings {
     PromptSortMode? promptSortMode,
     PromptViewMode? promptViewMode,
     List<String>? customPromptOrder,
+    bool? hapticEnabled,
   }) {
     return AppSettings(
       darkMode: darkMode ?? this.darkMode,
@@ -205,6 +210,7 @@ class AppSettings {
       promptSortMode: promptSortMode ?? this.promptSortMode,
       promptViewMode: promptViewMode ?? this.promptViewMode,
       customPromptOrder: customPromptOrder ?? this.customPromptOrder,
+      hapticEnabled: hapticEnabled ?? this.hapticEnabled,
     );
   }
 
@@ -222,6 +228,7 @@ class AppSettings {
     ),
     customPromptOrder: (json['customPromptOrder'] as List<dynamic>? ?? [])
         .cast<String>(),
+    hapticEnabled: json['hapticEnabled'] as bool? ?? true,
   );
 
   Map<String, dynamic> toJson() => {
@@ -232,5 +239,13 @@ class AppSettings {
     'promptSortMode': promptSortMode.storageValue,
     'promptViewMode': promptViewMode.storageValue,
     'customPromptOrder': customPromptOrder,
+    'hapticEnabled': hapticEnabled,
   };
 }
+
+void triggerInteractionHaptic(AppSettings settings) {
+  if (settings.hapticEnabled) {
+    HapticFeedback.lightImpact();
+  }
+}
+

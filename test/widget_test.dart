@@ -53,8 +53,13 @@ void main() {
 
     // Verify SettingsSheet is displayed
     expect(find.text('다크 모드'), findsOneWidget);
+    expect(find.text('터치 진동'), findsOneWidget);
     expect(find.text('앱 잠금'), findsOneWidget);
     expect(find.text('PIN 변경'), findsOneWidget);
+
+    // Verify haptic toggle can be tapped
+    await tester.tap(find.text('터치 진동'));
+    await tester.pumpAndSettle();
   });
 }
 
