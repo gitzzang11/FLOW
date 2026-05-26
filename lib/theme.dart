@@ -39,6 +39,18 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
     ),
+    drawerTheme: DrawerThemeData(
+      backgroundColor: brightness == Brightness.dark
+          ? const Color(0xFF161618)
+          : const Color(0xFFF8FAFC),
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+    ),
     textTheme: base.textTheme.apply(
       bodyColor: brightness == Brightness.dark
           ? Colors.white

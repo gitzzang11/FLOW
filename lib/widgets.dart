@@ -26,83 +26,102 @@ class FolderSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundColor = isDark ? const Color(0xFF161618) : const Color(0xFFF8FAFC);
+
+    return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(32),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.3),
+        color: backgroundColor,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+            width: 1,
+          ),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: AppGradients.accent),
-                    borderRadius: BorderRadius.circular(14),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: AppGradients.accent,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.folder_copy_rounded, color: Colors.white, size: 18),
                   ),
-                  child: const Icon(Icons.auto_awesome, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '폴더',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '폴더',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                      ),
                     ),
                   ),
-                ),
-                IconButton(
-                  tooltip: '폴더 추가',
-                  onPressed: onCreateFolder,
-                  icon: const Icon(Icons.create_new_folder_outlined),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _FolderTile(
-              label: '모든 프롬프트',
-              count: prompts.length,
-              selected: selectedFolderId.isEmpty,
-              onTap: () => onSelectFolder(''),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView.separated(
-                itemCount: folders.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final folder = folders[index];
-                  final count = prompts
-                      .where((p) => p.folderId == folder.id)
-                      .length;
-                  return _FolderTile(
-                    label: folder.name,
-                    count: count,
-                    selected: selectedFolderId == folder.id,
-                    onTap: () => onSelectFolder(folder.id),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') onEditFolder(folder);
-                        if (value == 'delete') onDeleteFolder(folder);
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'edit', child: Text('이름 변경')),
-                        PopupMenuItem(value: 'delete', child: Text('삭제')),
-                      ],
+                  IconButton(
+                    tooltip: '폴더 추가',
+                    onPressed: onCreateFolder,
+                    icon: const Icon(Icons.create_new_folder_outlined),
+                    style: IconButton.styleFrom(
+                      hoverColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              _FolderTile(
+                label: '모든 프롬프트',
+                count: prompts.length,
+                selected: selectedFolderId.isEmpty,
+                onTap: () => onSelectFolder(''),
+                settings: const AppSettings(), // Dummy/placeholder or just ignore since we don't trigger haptic here (handled in callbacks)
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: folders.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final folder = folders[index];
+                    final count = prompts
+                        .where((p) => p.folderId == folder.id)
+                        .length;
+                    return _FolderTile(
+                      label: folder.name,
+                      count: count,
+                      selected: selectedFolderId == folder.id,
+                      onTap: () => onSelectFolder(folder.id),
+                      settings: const AppSettings(),
+                      trailing: PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                        tooltip: '폴더 설정',
+                        onSelected: (value) {
+                          if (value == 'edit') onEditFolder(folder);
+                          if (value == 'delete') onDeleteFolder(folder);
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: 'edit', child: Text('이름 변경')),
+                          PopupMenuItem(value: 'delete', child: Text('삭제')),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -115,6 +134,7 @@ class _FolderTile extends StatelessWidget {
     required this.count,
     required this.selected,
     required this.onTap,
+    required this.settings,
     this.trailing,
   });
 
@@ -122,52 +142,95 @@ class _FolderTile extends StatelessWidget {
   final int count;
   final bool selected;
   final VoidCallback onTap;
+  final AppSettings settings;
   final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Ink(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? scheme.primaryContainer : scheme.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? scheme.primary.withOpacity(0.25)
-                : scheme.outlineVariant.withOpacity(0.25),
+
+    final nameColor = selected
+        ? (isDark ? Colors.white : Colors.black)
+        : (isDark ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.7));
+
+    final countColor = selected
+        ? (isDark ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.5))
+        : (isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4));
+
+    final iconColor = selected
+        ? scheme.primary
+        : (isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4));
+
+    final tileBg = selected
+        ? (isDark ? Colors.white.withOpacity(0.08) : scheme.primary.withOpacity(0.08))
+        : Colors.transparent;
+
+    final border = Border.all(
+      color: selected
+          ? (isDark ? Colors.white.withOpacity(0.1) : scheme.primary.withOpacity(0.15))
+          : Colors.transparent,
+      width: 1.5,
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: tileBg,
+            borderRadius: BorderRadius.circular(14),
+            border: border,
           ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? Icons.folder_open_rounded : Icons.folder_outlined,
-              color: selected ? scheme.primary : scheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.folder_open_rounded : Icons.folder_rounded,
+                color: iconColor,
+                size: 22,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                        color: nameColor,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '프롬프트 $count개',
+                      style: TextStyle(
+                        color: countColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null)
+                Theme(
+                  data: Theme.of(context).copyWith(
+                    iconButtonTheme: IconButtonThemeData(
+                      style: IconButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white54 : Colors.black54,
+                      ),
                     ),
                   ),
-                  Text(
-                    '프롬프트 $count개',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            if (trailing != null) trailing!,
-          ],
+                  child: trailing!,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -390,6 +453,7 @@ class PromptCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onDuplicate,
+    required this.onTogglePin,
   });
 
   final PromptItem prompt;
@@ -399,6 +463,7 @@ class PromptCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onDuplicate;
+  final VoidCallback onTogglePin;
 
   bool _isLocked() {
     final titleLower = prompt.title.toLowerCase();
@@ -426,7 +491,7 @@ class PromptCard extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final textStyle = TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16);
         return SafeArea(
           child: Column(
@@ -450,6 +515,17 @@ class PromptCard extends StatelessWidget {
                 onTap: () {
                   Navigator.pop(ctx);
                   onCopy();
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  prompt.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+                title: Text(prompt.isPinned ? '고정 해제' : '상단 고정', style: textStyle),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onTogglePin();
                 },
               ),
               ListTile(
@@ -517,36 +593,55 @@ class PromptCard extends StatelessWidget {
               ),
               padding: const EdgeInsets.all(16),
               clipBehavior: Clip.antiAlias,
-              child: isLocked
-                  ? Center(
-                      child: Icon(
-                        Icons.lock_rounded,
-                        size: 40,
-                        color: isDark ? Colors.white30 : Colors.black26,
-                      ),
-                    )
-                  : Align(
-                      alignment: Alignment.topLeft,
-                      child: Text.rich(
-                        TextSpan(
-                          children: prompt.segments
-                              .map(
-                                (segment) => TextSpan(
-                                  text: segment.text,
-                                  style: TextStyle(
-                                    color: Color(segment.colorValue),
-                                    height: 1.4,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: prompt.isPinned ? const EdgeInsets.only(right: 20) : EdgeInsets.zero,
+                      child: isLocked
+                          ? Center(
+                              child: Icon(
+                                Icons.lock_rounded,
+                                size: 40,
+                                color: isDark ? Colors.white30 : Colors.black26,
+                              ),
+                            )
+                          : Align(
+                              alignment: Alignment.topLeft,
+                              child: Text.rich(
+                                TextSpan(
+                                  children: prompt.segments
+                                      .map(
+                                        (segment) => TextSpan(
+                                          text: segment.text,
+                                          style: TextStyle(
+                                            color: Color(segment.colorValue),
+                                            height: 1.4,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
                                 ),
-                              )
-                              .toList(),
-                        ),
-                        maxLines: 6,
-                        overflow: TextOverflow.ellipsis,
+                                maxLines: 6,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                    ),
+                  ),
+                  if (prompt.isPinned)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Icon(
+                        Icons.push_pin_rounded,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 10),

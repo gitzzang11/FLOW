@@ -55,6 +55,7 @@ class PromptItem {
     required this.createdAt,
     required this.updatedAt,
     required this.segments,
+    this.isPinned = false,
   });
 
   final String id;
@@ -65,6 +66,7 @@ class PromptItem {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<PromptSegment> segments;
+  final bool isPinned;
 
   String get plainText => segments.map((segment) => segment.text).join();
 
@@ -77,6 +79,7 @@ class PromptItem {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<PromptSegment>? segments,
+    bool? isPinned,
   }) {
     return PromptItem(
       id: id ?? this.id,
@@ -87,6 +90,7 @@ class PromptItem {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       segments: segments ?? this.segments,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -102,6 +106,7 @@ class PromptItem {
       segments: (json['segments'] as List<dynamic>? ?? [])
           .map((item) => PromptSegment.fromJson(item as Map<String, dynamic>))
           .toList(),
+      isPinned: json['isPinned'] as bool? ?? false,
     );
   }
 
@@ -114,6 +119,7 @@ class PromptItem {
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
     'segments': segments.map((item) => item.toJson()).toList(),
+    'isPinned': isPinned,
   };
 }
 

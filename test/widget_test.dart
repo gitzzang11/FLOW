@@ -61,6 +61,73 @@ void main() {
     await tester.tap(find.text('터치 진동'));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('LockScreen lockout after 10 failed attempts', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    // Set lock screen enabled in SharedPreferences mock setup
+    SharedPreferences.setMockInitialValues({
+      'flow_store_v1': '{"version":1,"prompts":[],"folders":[],"settings":{"darkMode":false,"lockEnabled":true,"pinCode":"1234"}}'
+    });
+
+    await tester.pumpWidget(const FlowApp());
+    await tester.pumpAndSettle();
+
+    // Verify LockScreen is displayed
+    expect(find.text('잠금 해제'), findsOneWidget);
+    
+    final pinField = find.byType(TextField);
+    expect(pinField, findsOneWidget);
+
+    // Fail 9 times
+    for (int i = 0; i < 9; i++) {
+      await tester.enterText(pinField, '0000');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('PIN이 일치하지 않습니다. (시도 횟수: ${i + 1}/10)'), findsOneWidget);
+    }
+
+    // 10th failure
+    await tester.enterText(pinField, '0000');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    
+    // Should be locked out
+    expect(find.text('잠금 해제 제한됨'), findsOneWidget);
+    expect(find.textContaining('10회 실패로 잠금해제가 제한됩니다.'), findsOneWidget);
+    
+    // Try to type correct pin while locked out
+    await tester.enterText(pinField, '1234');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    
+    // Should still be on lock screen
+    expect(find.text('잠금 해제 제한됨'), findsOneWidget);
+
+    // Fast forward time to check if lockout expires
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pumpAndSettle();
+
+    // Lockout should expire
+    expect(find.text('잠금 해제'), findsOneWidget);
+    expect(find.textContaining('10회 실패로'), findsNothing);
+
+    // Enter correct pin now
+    await tester.tap(pinField);
+    await tester.pumpAndSettle();
+    await tester.enterText(pinField, '1234');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    // App should be unlocked (folders page displayed)
+    expect(find.text('폴더'), findsOneWidget);
+  });
 }
 
 

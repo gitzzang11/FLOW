@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -130,7 +133,18 @@ class _FlowShellState extends State<FlowShell> {
       onEdit: () => _openEditor(existing: prompt),
       onDelete: () => _deletePrompt(prompt),
       onDuplicate: () => _duplicatePrompt(prompt),
+      onTogglePin: () => _togglePinPrompt(prompt),
     );
+  }
+
+  Future<void> _togglePinPrompt(PromptItem p) async {
+    setState(() {
+      final idx = widget.store.prompts.indexWhere((item) => item.id == p.id);
+      if (idx >= 0) {
+        widget.store.prompts[idx] = p.copyWith(isPinned: !p.isPinned);
+      }
+    });
+    await widget.onStoreChanged();
   }
 
   Future<void> _openEditor({PromptItem? existing}) async {
@@ -453,14 +467,14 @@ class _FlowShellState extends State<FlowShell> {
         settings: widget.store.settings,
         onToggleTheme: (v) {
           triggerInteractionHaptic(widget.store.settings);
+          Navigator.pop(ctx);
           widget.store.settings = widget.store.settings.copyWith(darkMode: v);
           widget.onStoreChanged();
-          Navigator.pop(context);
         },
         onToggleLock: (v) async {
           triggerInteractionHaptic(widget.store.settings);
           if (v && widget.store.settings.pinCode.isEmpty) {
-            Navigator.pop(context);
+            Navigator.pop(ctx);
             final pin = await _showPinDialog(title: 'PIN 설정');
             if (pin != null) {
               widget.store.settings = widget.store.settings.copyWith(
@@ -470,16 +484,16 @@ class _FlowShellState extends State<FlowShell> {
               await widget.onStoreChanged();
             }
           } else {
+            Navigator.pop(ctx);
             widget.store.settings = widget.store.settings.copyWith(
               lockEnabled: v,
             );
             await widget.onStoreChanged();
-            if (mounted) Navigator.pop(context);
           }
         },
         onChangePin: () async {
           triggerInteractionHaptic(widget.store.settings);
-          Navigator.pop(context);
+          Navigator.pop(ctx);
           final pin = await _showPinDialog(title: 'PIN 변경');
           if (pin != null) {
             widget.store.settings = widget.store.settings.copyWith(
@@ -495,7 +509,7 @@ class _FlowShellState extends State<FlowShell> {
         },
         onLockNow: () {
           triggerInteractionHaptic(widget.store.settings);
-          Navigator.pop(context);
+          Navigator.pop(ctx);
           widget.onRequireRelock();
         },
         onBackup: _handleBackup,
@@ -587,9 +601,12 @@ class _FlowShellState extends State<FlowShell> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final pinnedPrompts = prompts.where((p) => p.isPinned).toList();
+    final regularPrompts = prompts.where((p) => !p.isPinned).toList();
+
     // Group prompts by month
     final monthGroups = <String, List<PromptItem>>{};
-    for (final prompt in prompts) {
+    for (final prompt in regularPrompts) {
       final groupName = _getMonthGroupName(prompt.updatedAt);
       monthGroups.putIfAbsent(groupName, () => []).add(prompt);
     }
@@ -680,6 +697,7 @@ class _FlowShellState extends State<FlowShell> {
       drawer: isWide
             ? null
             : Drawer(
+                width: 280,
                 child: FolderSidebar(
                   folders: widget.store.folders,
                   prompts: widget.store.prompts,
@@ -839,7 +857,55 @@ class _FlowShellState extends State<FlowShell> {
                         hasScrollBody: false,
                         child: EmptyStateCard(onCreatePrompt: () => _openEditor()),
                       )
-                    else
+                    else ...[
+                      if (pinnedPrompts.isNotEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.push_pin_rounded,
+                                  size: 18,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  '고정된 프롬프트',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: mainAxisSpacing,
+                              crossAxisSpacing: crossAxisSpacing,
+                              mainAxisExtent: mainAxisExtent,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, idx) {
+                                final prompt = pinnedPrompts[idx];
+                                final overallIdx = prompts.indexOf(prompt);
+                                return _buildPromptCard(
+                                  prompt: prompt,
+                                  index: overallIdx,
+                                  totalCount: prompts.length,
+                                  isGrid: true,
+                                );
+                              },
+                              childCount: pinnedPrompts.length,
+                            ),
+                          ),
+                        ),
+                      ],
                       for (final entry in monthGroups.entries) ...[
                         SliverToBoxAdapter(
                           child: Padding(
@@ -878,6 +944,7 @@ class _FlowShellState extends State<FlowShell> {
                           ),
                         ),
                       ],
+                    ],
                     const SliverToBoxAdapter(
                       child: SizedBox(height: 80),
                     ),
@@ -902,6 +969,16 @@ class _FlowShellState extends State<FlowShell> {
   }
 }
 
+class ShakeCurve extends Curve {
+  const ShakeCurve({this.count = 3.0});
+  final double count;
+
+  @override
+  double transformInternal(double t) {
+    return math.sin(t * count * 2 * math.pi);
+  }
+}
+
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key, required this.pin, required this.onUnlock, required this.settings});
 
@@ -913,20 +990,127 @@ class LockScreen extends StatefulWidget {
   State<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends State<LockScreen> {
+class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _pinController = TextEditingController();
   String? _error;
   bool _isUnlocking = false;
 
+  late final AnimationController _shakeController;
+  late final Animation<double> _shakeAnimation;
+
+  int _failedAttempts = 0;
+  int _lockoutSecondsRemaining = 0;
+  Timer? _countdownTimer;
+  bool _loadingState = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _shakeAnimation = Tween<double>(begin: 0.0, end: 12.0).animate(
+      CurvedAnimation(
+        parent: _shakeController,
+        curve: const ShakeCurve(count: 3.0),
+      ),
+    );
+    _loadLockoutState();
+  }
+
   @override
   void dispose() {
     _pinController.dispose();
+    _shakeController.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
-  void _check() {
+  Future<void> _loadLockoutState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lockoutMillis = prefs.getInt('lockscreen_lockout_until') ?? 0;
+      final failed = prefs.getInt('lockscreen_failed_attempts') ?? 0;
+
+      final lockoutTime = DateTime.fromMillisecondsSinceEpoch(lockoutMillis);
+      final now = DateTime.now();
+
+      if (mounted) {
+        setState(() {
+          _failedAttempts = failed;
+          _loadingState = false;
+          if (lockoutTime.isAfter(now)) {
+            final diffSeconds = lockoutTime.difference(now).inSeconds;
+            if (diffSeconds > 0) {
+              _startLockoutCountdown(diffSeconds);
+            } else {
+              _clearFailedAttempts();
+            }
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingState = false;
+        });
+      }
+    }
+  }
+
+  void _startLockoutCountdown(int seconds) {
+    _countdownTimer?.cancel();
+    setState(() {
+      _lockoutSecondsRemaining = seconds;
+      _error = '10회 실패로 잠금해제가 제한됩니다. ($_lockoutSecondsRemaining초 후 재시도)';
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        if (_lockoutSecondsRemaining > 1) {
+          _lockoutSecondsRemaining--;
+          _error = '10회 실패로 잠금해제가 제한됩니다. ($_lockoutSecondsRemaining초 후 재시도)';
+        } else {
+          _lockoutSecondsRemaining = 0;
+          _countdownTimer?.cancel();
+          _clearFailedAttempts();
+          _error = null;
+          _pinController.clear();
+        }
+      });
+    });
+  }
+
+  Future<void> _incrementFailedAttempts() async {
+    final prefs = await SharedPreferences.getInstance();
+    _failedAttempts++;
+    await prefs.setInt('lockscreen_failed_attempts', _failedAttempts);
+
+    if (_failedAttempts >= 10) {
+      final now = DateTime.now();
+      final lockoutTime = now.add(const Duration(minutes: 1));
+      await prefs.setInt('lockscreen_lockout_until', lockoutTime.millisecondsSinceEpoch);
+      _startLockoutCountdown(60);
+    }
+  }
+
+  Future<void> _clearFailedAttempts() async {
+    final prefs = await SharedPreferences.getInstance();
+    _failedAttempts = 0;
+    _lockoutSecondsRemaining = 0;
+    await prefs.remove('lockscreen_failed_attempts');
+    await prefs.remove('lockscreen_lockout_until');
+  }
+
+  Future<void> _check() async {
     triggerInteractionHaptic(widget.settings);
-    if (_isUnlocking) return;
+    if (_isUnlocking || _lockoutSecondsRemaining > 0 || _loadingState) return;
 
     FocusScope.of(context).unfocus();
     final input = _pinController.text.trim();
@@ -936,6 +1120,7 @@ class _LockScreenState extends State<LockScreen> {
         _error = null;
         _isUnlocking = true;
       });
+      await _clearFailedAttempts();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         widget.onUnlock();
@@ -943,11 +1128,27 @@ class _LockScreenState extends State<LockScreen> {
       return;
     }
 
-    setState(() => _error = 'PIN이 일치하지 않습니다.');
+    // Wrong PIN
+    HapticFeedback.vibrate();
+    _shakeController.forward(from: 0.0);
+
+    await _incrementFailedAttempts();
+
+    if (mounted) {
+      setState(() {
+        if (_failedAttempts >= 10) {
+          // Lockout is active, countdown handles error text update.
+        } else {
+          _error = 'PIN이 일치하지 않습니다. (시도 횟수: $_failedAttempts/10)';
+        }
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLockedOut = _lockoutSecondsRemaining > 0;
+
     return Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -955,56 +1156,73 @@ class _LockScreenState extends State<LockScreen> {
             child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Center(
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  padding: const EdgeInsets.all(32),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.lock_person_outlined,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        '잠금 해제',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                child: AnimatedBuilder(
+                  animation: _shakeAnimation,
+                  builder: (context, child) {
+                    return Transform.translate(
+                      offset: Offset(_shakeAnimation.value, 0),
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isLockedOut
+                              ? Icons.lock_clock_outlined
+                              : Icons.lock_person_outlined,
+                          size: 80,
+                          color: isLockedOut
+                              ? Colors.redAccent
+                              : Theme.of(context).colorScheme.primary,
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _pinController,
-                        obscureText: true,
-                        keyboardType: TextInputType.number,
-                        maxLength: 4,
-                        textAlign: TextAlign.center,
-                        enabled: !_isUnlocking,
-                        decoration: InputDecoration(
-                          errorText: _error,
-                          counterText: '',
+                        const SizedBox(height: 24),
+                        Text(
+                          isLockedOut ? '잠금 해제 제한됨' : '잠금 해제',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: isLockedOut ? Colors.redAccent : null,
+                          ),
                         ),
-                        onSubmitted: (_) => _check(),
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: _isUnlocking ? null : _check,
-                          child: _isUnlocking
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text('확인'),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _pinController,
+                          obscureText: true,
+                          keyboardType: TextInputType.number,
+                          maxLength: 4,
+                          textAlign: TextAlign.center,
+                          enabled: !_isUnlocking && !isLockedOut && !_loadingState,
+                          decoration: InputDecoration(
+                            errorText: _error,
+                            counterText: '',
+                            prefixIcon: isLockedOut
+                                ? const Icon(Icons.timer, color: Colors.redAccent)
+                                : null,
+                          ),
+                          onSubmitted: (_) => _check(),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: (_isUnlocking || isLockedOut || _loadingState) ? null : _check,
+                            child: _isUnlocking
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('확인'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
