@@ -1,6 +1,6 @@
 {
-    "name": "save_prompt",
-    "short_name": "save_prompt",
+    "name": "save_prompt_window",
+    "short_name": "save_prompt_window",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
