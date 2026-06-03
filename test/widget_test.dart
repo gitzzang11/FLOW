@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flow/main.dart';
 
 void main() {
-  testWidgets('Flow app renders main shell in 2-column grid layout', (tester) async {
+  testWidgets('Flow app renders adaptive fixed-card grid layout', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;
 
@@ -24,11 +27,44 @@ void main() {
     expect(find.text('랜딩 페이지 카피라이팅'), findsOneWidget);
     expect(find.text('최신순'), findsOneWidget);
 
-    // Verify gridDelegate is SliverGridDelegateWithFixedCrossAxisCount with crossAxisCount: 2
     final sliverGrid = tester.widget<SliverGrid>(find.byType(SliverGrid).first);
-    expect(sliverGrid.gridDelegate, isA<SliverGridDelegateWithFixedCrossAxisCount>());
-    final delegate = sliverGrid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, equals(2));
+    expect(
+      sliverGrid.gridDelegate,
+      isA<SliverGridDelegateWithFixedCrossAxisCount>(),
+    );
+    final delegate =
+        sliverGrid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, equals(4));
+    expect(delegate.mainAxisExtent, equals(248));
+  });
+
+  testWidgets('Flow app supports desktop search shortcut', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(const FlowApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('Flow app opens settings sheet', (tester) async {
@@ -106,7 +142,8 @@ void main() {
 
     // Set lock screen enabled in SharedPreferences mock setup
     SharedPreferences.setMockInitialValues({
-      'flow_store_v1': '{"version":1,"prompts":[],"folders":[],"settings":{"darkMode":false,"lockEnabled":true,"pinCode":"1234"}}'
+      'flow_store_v1':
+          '{"version":1,"prompts":[],"folders":[],"settings":{"darkMode":false,"lockEnabled":true,"pinCode":"1234"}}',
     });
 
     await tester.pumpWidget(const FlowApp());
@@ -114,7 +151,7 @@ void main() {
 
     // Verify LockScreen is displayed
     expect(find.text('잠금 해제'), findsOneWidget);
-    
+
     final pinField = find.byType(TextField);
     expect(pinField, findsOneWidget);
 
@@ -130,16 +167,16 @@ void main() {
     await tester.enterText(pinField, '0000');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    
+
     // Should be locked out
     expect(find.text('잠금 해제 제한됨'), findsOneWidget);
     expect(find.textContaining('10회 실패로 잠금해제가 제한됩니다.'), findsOneWidget);
-    
+
     // Try to type correct pin while locked out
     await tester.enterText(pinField, '1234');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    
+
     // Should still be on lock screen
     expect(find.text('잠금 해제 제한됨'), findsOneWidget);
 
@@ -162,4 +199,3 @@ void main() {
     expect(find.text('폴더'), findsOneWidget);
   });
 }
-

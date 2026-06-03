@@ -27,14 +27,18 @@ class FolderSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final backgroundColor = isDark ? const Color(0xFF161618) : const Color(0xFFF8FAFC);
+    final backgroundColor = isDark
+        ? const Color(0xFF161618)
+        : const Color(0xFFF8FAFC);
 
     return Container(
       decoration: BoxDecoration(
         color: backgroundColor,
         border: Border(
           right: BorderSide(
-            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.black.withOpacity(0.05),
             width: 1,
           ),
         ),
@@ -58,7 +62,11 @@ class FolderSidebar extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.folder_copy_rounded, color: Colors.white, size: 18),
+                    child: const Icon(
+                      Icons.folder_copy_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -75,7 +83,9 @@ class FolderSidebar extends StatelessWidget {
                     onPressed: onCreateFolder,
                     icon: const Icon(Icons.create_new_folder_outlined),
                     style: IconButton.styleFrom(
-                      hoverColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                      hoverColor: isDark
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.05),
                     ),
                   ),
                 ],
@@ -86,7 +96,8 @@ class FolderSidebar extends StatelessWidget {
                 count: prompts.length,
                 selected: selectedFolderId.isEmpty,
                 onTap: () => onSelectFolder(''),
-                settings: const AppSettings(), // Dummy/placeholder or just ignore since we don't trigger haptic here (handled in callbacks)
+                settings:
+                    const AppSettings(), // Dummy/placeholder or just ignore since we don't trigger haptic here (handled in callbacks)
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -152,23 +163,35 @@ class _FolderTile extends StatelessWidget {
 
     final nameColor = selected
         ? (isDark ? Colors.white : Colors.black)
-        : (isDark ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.7));
+        : (isDark
+              ? Colors.white.withOpacity(0.7)
+              : Colors.black.withOpacity(0.7));
 
     final countColor = selected
-        ? (isDark ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.5))
-        : (isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4));
+        ? (isDark
+              ? Colors.white.withOpacity(0.6)
+              : Colors.black.withOpacity(0.5))
+        : (isDark
+              ? Colors.white.withOpacity(0.4)
+              : Colors.black.withOpacity(0.4));
 
     final iconColor = selected
         ? scheme.primary
-        : (isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4));
+        : (isDark
+              ? Colors.white.withOpacity(0.4)
+              : Colors.black.withOpacity(0.4));
 
     final tileBg = selected
-        ? (isDark ? Colors.white.withOpacity(0.08) : scheme.primary.withOpacity(0.08))
+        ? (isDark
+              ? Colors.white.withOpacity(0.08)
+              : scheme.primary.withOpacity(0.08))
         : Colors.transparent;
 
     final border = Border.all(
       color: selected
-          ? (isDark ? Colors.white.withOpacity(0.1) : scheme.primary.withOpacity(0.15))
+          ? (isDark
+                ? Colors.white.withOpacity(0.1)
+                : scheme.primary.withOpacity(0.15))
           : Colors.transparent,
       width: 1.5,
     );
@@ -176,6 +199,7 @@ class _FolderTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
@@ -202,7 +226,9 @@ class _FolderTile extends StatelessWidget {
                       label,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: selected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                         color: nameColor,
                         fontSize: 15,
                       ),
@@ -210,10 +236,7 @@ class _FolderTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '프롬프트 $count개',
-                      style: TextStyle(
-                        color: countColor,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: countColor, fontSize: 12),
                     ),
                   ],
                 ),
@@ -223,7 +246,9 @@ class _FolderTile extends StatelessWidget {
                   data: Theme.of(context).copyWith(
                     iconButtonTheme: IconButtonThemeData(
                       style: IconButton.styleFrom(
-                        foregroundColor: isDark ? Colors.white54 : Colors.black54,
+                        foregroundColor: isDark
+                            ? Colors.white54
+                            : Colors.black54,
                       ),
                     ),
                   ),
@@ -486,13 +511,18 @@ class PromptCard extends StatelessWidget {
   void _showActionSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1C1C1E) : Colors.white,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF1C1C1E)
+          : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final textStyle = TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 16);
+        final textStyle = TextStyle(
+          color: isDark ? Colors.white : Colors.black,
+          fontSize: 16,
+        );
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -510,7 +540,10 @@ class PromptCard extends StatelessWidget {
               ),
               const Divider(height: 1),
               ListTile(
-                leading: Icon(Icons.copy_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                leading: Icon(
+                  Icons.copy_rounded,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
                 title: Text('복사', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -519,17 +552,25 @@ class PromptCard extends StatelessWidget {
               ),
               ListTile(
                 leading: Icon(
-                  prompt.isPinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                  prompt.isPinned
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
                   color: isDark ? Colors.white70 : Colors.black87,
                 ),
-                title: Text(prompt.isPinned ? '고정 해제' : '상단 고정', style: textStyle),
+                title: Text(
+                  prompt.isPinned ? '고정 해제' : '상단 고정',
+                  style: textStyle,
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   onTogglePin();
                 },
               ),
               ListTile(
-                leading: Icon(Icons.edit_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                leading: Icon(
+                  Icons.edit_rounded,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
                 title: Text('편집', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -537,7 +578,10 @@ class PromptCard extends StatelessWidget {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.control_point_duplicate_rounded, color: isDark ? Colors.white70 : Colors.black87),
+                leading: Icon(
+                  Icons.control_point_duplicate_rounded,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
                 title: Text('복제', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -545,8 +589,14 @@ class PromptCard extends StatelessWidget {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                title: const Text('삭제', style: TextStyle(color: Colors.red, fontSize: 16)),
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red,
+                ),
+                title: const Text(
+                  '삭제',
+                  style: TextStyle(color: Colors.red, fontSize: 16),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   onDelete();
@@ -573,101 +623,108 @@ class PromptCard extends StatelessWidget {
       color: titleColor,
     );
 
-    final dateStyle = TextStyle(
-      fontSize: 12.0,
-      color: dateColor,
-    );
+    final dateStyle = TextStyle(fontSize: 12.0, color: dateColor);
 
-    return GestureDetector(
-      onTap: onCopy,
-      onLongPress: () => _showActionSheet(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFE5E5EA),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              padding: const EdgeInsets.all(16),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: Padding(
-                      padding: prompt.isPinned ? const EdgeInsets.only(right: 20) : EdgeInsets.zero,
-                      child: isLocked
-                          ? Center(
-                              child: Icon(
-                                Icons.lock_rounded,
-                                size: 40,
-                                color: isDark ? Colors.white30 : Colors.black26,
-                              ),
-                            )
-                          : Align(
-                              alignment: Alignment.topLeft,
-                              child: Text.rich(
-                                TextSpan(
-                                  children: prompt.segments
-                                      .map(
-                                        (segment) => TextSpan(
-                                          text: segment.text,
-                                          style: TextStyle(
-                                            color: Color(segment.colorValue),
-                                            height: 1.4,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onCopy,
+        onDoubleTap: onEdit,
+        onLongPress: () => _showActionSheet(context),
+        onSecondaryTapUp: (_) => _showActionSheet(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            AspectRatio(
+              aspectRatio: 1.0,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1C1C1E)
+                      : const Color(0xFFE5E5EA),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                padding: const EdgeInsets.all(16),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Padding(
+                        padding: prompt.isPinned
+                            ? const EdgeInsets.only(right: 20)
+                            : EdgeInsets.zero,
+                        child: isLocked
+                            ? Center(
+                                child: Icon(
+                                  Icons.lock_rounded,
+                                  size: 40,
+                                  color: isDark
+                                      ? Colors.white30
+                                      : Colors.black26,
                                 ),
-                                maxLines: 6,
-                                overflow: TextOverflow.ellipsis,
+                              )
+                            : Align(
+                                alignment: Alignment.topLeft,
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: prompt.segments
+                                        .map(
+                                          (segment) => TextSpan(
+                                            text: segment.text,
+                                            style: TextStyle(
+                                              color: Color(segment.colorValue),
+                                              height: 1.4,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                  maxLines: 6,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                    ),
-                  ),
-                  if (prompt.isPinned)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: Icon(
-                        Icons.push_pin_rounded,
-                        size: 16,
-                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
-                ],
+                    if (prompt.isPinned)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Icon(
+                          Icons.push_pin_rounded,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              prompt.title,
-              style: titleStyle,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                prompt.title,
+                style: titleStyle,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _formatMonthDay(prompt.updatedAt),
-            style: dateStyle,
-            textAlign: TextAlign.center,
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              _formatMonthDay(prompt.updatedAt),
+              style: dateStyle,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-
-
 
 class EmptyStateCard extends StatelessWidget {
   const EmptyStateCard({super.key, required this.onCreatePrompt});
@@ -802,7 +859,8 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   Future<void> _pickMoreColors(int segmentIdx) async {
     final color = await showDialog<Color>(
       context: context,
-      builder: (ctx) => ColorPickerDialog(presets: _presetColors, settings: widget.settings),
+      builder: (ctx) =>
+          ColorPickerDialog(presets: _presetColors, settings: widget.settings),
     );
 
     if (color != null) {
@@ -813,8 +871,6 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
       });
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -1025,9 +1081,11 @@ class _ColorDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
         margin: const EdgeInsets.only(right: 8),
         width: 24,
         height: 24,
@@ -1049,13 +1107,18 @@ class _ColorDot extends StatelessWidget {
                 ]
               : null,
         ),
+        ),
       ),
     );
   }
 }
 
 class ColorPickerDialog extends StatefulWidget {
-  const ColorPickerDialog({super.key, required this.presets, required this.settings});
+  const ColorPickerDialog({
+    super.key,
+    required this.presets,
+    required this.settings,
+  });
 
   final List<Color> presets;
   final AppSettings settings;
@@ -1129,10 +1192,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
             children: [
               const Text(
                 '기본 색상',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               GridView.builder(
@@ -1168,10 +1228,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
               const SizedBox(height: 16),
               const Text(
                 '사용자 정의 색상',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               Row(
@@ -1202,7 +1259,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: _customColor ?? (isDark ? Colors.grey[800] : Colors.grey[200]),
+                      color:
+                          _customColor ??
+                          (isDark ? Colors.grey[800] : Colors.grey[200]),
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: isDark ? Colors.white24 : Colors.black12,
@@ -1333,12 +1392,16 @@ class FolderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     // Cover color of the folder
-    final coverColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA);
-    final borderColor = isSelected 
-        ? scheme.primary 
-        : (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1));
+    final coverColor = isDark
+        ? const Color(0xFF2C2C2E)
+        : const Color(0xFFE5E5EA);
+    final borderColor = isSelected
+        ? scheme.primary
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.1));
     final labelColor = isDark ? Colors.white : Colors.black;
     final countColor = isDark ? Colors.white60 : Colors.black54;
 
@@ -1358,7 +1421,9 @@ class FolderCard extends StatelessWidget {
               child: Container(
                 height: 30,
                 decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.9) : Colors.grey[300],
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.9)
+                      : Colors.grey[300],
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(6),
                     topRight: Radius.circular(6),

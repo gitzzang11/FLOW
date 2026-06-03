@@ -103,7 +103,61 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _changeSortMode(PromptSortMode mode) async {
-    await _persistSettings(widget.store.settings.copyWith(promptSortMode: mode));
+    await _persistSettings(
+      widget.store.settings.copyWith(promptSortMode: mode),
+    );
+  }
+
+  void _startSearch() {
+    if (_isSearching) return;
+    triggerInteractionHaptic(widget.store.settings);
+    setState(() {
+      _isSearching = true;
+    });
+  }
+
+  void _closeSearch() {
+    if (!_isSearching && _searchQuery.isEmpty && _selectedTags.isEmpty) return;
+    triggerInteractionHaptic(widget.store.settings);
+    setState(() {
+      _isSearching = false;
+      _searchQuery = '';
+      _searchController.clear();
+      _selectedTags.clear();
+    });
+  }
+
+  void _lockNowFromKeyboard() {
+    if (!widget.store.settings.lockEnabled) return;
+    triggerInteractionHaptic(widget.store.settings);
+    widget.onRequireRelock();
+  }
+
+  Widget _withDesktopShortcuts(Widget child) {
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
+          triggerInteractionHaptic(widget.store.settings);
+          _openEditor();
+        },
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _startSearch,
+        const SingleActivator(LogicalKeyboardKey.comma, control: true):
+            _openSettings,
+        const SingleActivator(LogicalKeyboardKey.keyL, control: true):
+            _lockNowFromKeyboard,
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (_isSearching ||
+              _searchQuery.isNotEmpty ||
+              _selectedTags.isNotEmpty) {
+            _closeSearch();
+          } else {
+            FocusManager.instance.primaryFocus?.unfocus();
+          }
+        },
+      },
+      child: Focus(autofocus: true, child: child),
+    );
   }
 
   Widget _buildPromptCard({
@@ -376,7 +430,10 @@ class _FlowShellState extends State<FlowShell> {
     await WidgetsBinding.instance.endOfFrame;
   }
 
-  Future<void> _handleToggleLock(BuildContext sheetContext, bool enabled) async {
+  Future<void> _handleToggleLock(
+    BuildContext sheetContext,
+    bool enabled,
+  ) async {
     triggerInteractionHaptic(widget.store.settings);
     await _closeSettingsSheet(sheetContext);
     if (!mounted) return;
@@ -407,9 +464,7 @@ class _FlowShellState extends State<FlowShell> {
     final pin = await _showPinDialog(title: 'PIN 변경');
     if (!mounted || pin == null) return;
 
-    widget.store.settings = widget.store.settings.copyWith(
-      pinCode: pin,
-    );
+    widget.store.settings = widget.store.settings.copyWith(pinCode: pin);
     await widget.onStoreChanged();
     if (!mounted) return;
 
@@ -509,7 +564,9 @@ class _FlowShellState extends State<FlowShell> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Colors.black
+          : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -535,7 +592,9 @@ class _FlowShellState extends State<FlowShell> {
           if (v) {
             HapticFeedback.lightImpact();
           }
-          widget.store.settings = widget.store.settings.copyWith(hapticEnabled: v);
+          widget.store.settings = widget.store.settings.copyWith(
+            hapticEnabled: v,
+          );
           widget.onStoreChanged();
         },
       ),
@@ -628,90 +687,86 @@ class _FlowShellState extends State<FlowShell> {
       monthGroups.putIfAbsent(groupName, () => []).add(prompt);
     }
 
-    return Scaffold(
-      key: _scaffoldKey,
-      appBar: AppBar(
-        titleSpacing: 16,
-        leading: _isSearching
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                onPressed: () {
-                  triggerInteractionHaptic(widget.store.settings);
-                  setState(() {
-                    _isSearching = false;
-                    _searchQuery = '';
-                    _searchController.clear();
-                    _selectedTags.clear();
-                  });
-                },
-              )
-            : IconButton(
-                icon: const Icon(Icons.menu_rounded),
-                onPressed: isWide
-                    ? null
-                    : () {
-                        triggerInteractionHaptic(widget.store.settings);
-                        _scaffoldKey.currentState?.openDrawer();
-                      },
-              ),
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                onChanged: (value) => setState(() {
-                  _searchQuery = value;
-                  if (_searchQuery.isEmpty) {
-                    _selectedTags.clear();
-                  }
-                }),
-                decoration: InputDecoration(
-                  hintText: '제목, 태그, 내용 검색',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: _searchQuery.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchQuery = '';
-                              _selectedTags.clear();
-                            });
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              )
-            : const Text(
-                '폴더',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
-              ),
-        actions: _isSearching
-            ? []
-            : [
-                IconButton(
+    return _withDesktopShortcuts(
+      Scaffold(
+        key: _scaffoldKey,
+        appBar: AppBar(
+          titleSpacing: 16,
+          leading: _isSearching
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
                   onPressed: () {
                     triggerInteractionHaptic(widget.store.settings);
                     setState(() {
-                      _isSearching = true;
+                      _isSearching = false;
+                      _searchQuery = '';
+                      _searchController.clear();
+                      _selectedTags.clear();
                     });
                   },
-                  icon: const Icon(Icons.search_rounded),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.menu_rounded),
+                  onPressed: isWide
+                      ? null
+                      : () {
+                          triggerInteractionHaptic(widget.store.settings);
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
                 ),
-                IconButton(
-                  tooltip: '설정',
-                  onPressed: _openSettings,
-                  icon: const Icon(Icons.settings_rounded),
+          title: _isSearching
+              ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: (value) => setState(() {
+                    _searchQuery = value;
+                    if (_searchQuery.isEmpty) {
+                      _selectedTags.clear();
+                    }
+                  }),
+                  decoration: InputDecoration(
+                    hintText: '제목, 태그, 내용 검색',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: _searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _selectedTags.clear();
+                              });
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surface,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                )
+              : const Text(
+                  '폴더',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
                 ),
-              ],
-      ),
-      drawer: isWide
+          actions: _isSearching
+              ? []
+              : [
+                  IconButton(
+                    onPressed: _startSearch,
+                    icon: const Icon(Icons.search_rounded),
+                  ),
+                  IconButton(
+                    tooltip: '설정',
+                    onPressed: _openSettings,
+                    icon: const Icon(Icons.settings_rounded),
+                  ),
+                ],
+        ),
+        drawer: isWide
             ? null
             : Drawer(
                 width: 280,
@@ -737,178 +792,206 @@ class _FlowShellState extends State<FlowShell> {
                   },
                 ),
               ),
-      body: Row(
-        children: [
-          if (isWide)
-            SizedBox(
-              width: 280,
-              child: FolderSidebar(
-                folders: widget.store.folders,
-                prompts: widget.store.prompts,
-                selectedFolderId: _selectedFolderId,
-                onSelectFolder: (id) {
-                  triggerInteractionHaptic(widget.store.settings);
-                  setState(() => _selectedFolderId = id);
-                },
-                onCreateFolder: () {
-                  triggerInteractionHaptic(widget.store.settings);
-                  _showFolderDialog();
-                },
-                onEditFolder: (f) {
-                  triggerInteractionHaptic(widget.store.settings);
-                  _showFolderDialog(folder: f);
-                },
-                onDeleteFolder: (f) {
-                  triggerInteractionHaptic(widget.store.settings);
-                  _deleteFolder(f);
-                },
+        body: Row(
+          children: [
+            if (isWide)
+              SizedBox(
+                width: 280,
+                child: FolderSidebar(
+                  folders: widget.store.folders,
+                  prompts: widget.store.prompts,
+                  selectedFolderId: _selectedFolderId,
+                  onSelectFolder: (id) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    setState(() => _selectedFolderId = id);
+                  },
+                  onCreateFolder: () {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _showFolderDialog();
+                  },
+                  onEditFolder: (f) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _showFolderDialog(folder: f);
+                  },
+                  onDeleteFolder: (f) {
+                    triggerInteractionHaptic(widget.store.settings);
+                    _deleteFolder(f);
+                  },
+                ),
               ),
-            ),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                const columnCount = 2;
-                const crossAxisSpacing = 16.0;
-                const mainAxisSpacing = 16.0;
-                const padding = 16.0;
-                final totalSpacing = (columnCount - 1) * crossAxisSpacing + padding * 2;
-                final itemWidth = (constraints.maxWidth - totalSpacing) / columnCount;
-                final mainAxisExtent = itemWidth + 60.0;
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const cardWidth = 184.0;
+                  const cardHeight = 248.0;
+                  const crossAxisSpacing = 16.0;
+                  const mainAxisSpacing = 16.0;
+                  const padding = 16.0;
+                  final contentWidth = math.max(
+                    0.0,
+                    constraints.maxWidth - padding * 2,
+                  );
+                  final columnCount = math.max(
+                    1,
+                    ((contentWidth + crossAxisSpacing) /
+                            (cardWidth + crossAxisSpacing))
+                        .floor(),
+                  );
+                  final gridWidth =
+                      columnCount * cardWidth +
+                      (columnCount - 1) * crossAxisSpacing;
+                  final gridHorizontalPadding = math.max(
+                    padding,
+                    (constraints.maxWidth - gridWidth) / 2,
+                  );
+                  final gridDelegate =
+                      SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columnCount,
+                        mainAxisSpacing: mainAxisSpacing,
+                        crossAxisSpacing: crossAxisSpacing,
+                        mainAxisExtent: cardHeight,
+                      );
 
-                return CustomScrollView(
-                  slivers: [
-                    // Horizontal folders list
-                    SliverToBoxAdapter(
-                      child: _buildFoldersHorizontalList(),
-                    ),
+                  return CustomScrollView(
+                    slivers: [
+                      // Horizontal folders list
+                      SliverToBoxAdapter(child: _buildFoldersHorizontalList()),
 
-                    // Sorting controls (layout toggle removed)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: PopupMenuButton<PromptSortMode>(
-                            tooltip: '정렬',
-                            onSelected: (mode) {
-                              triggerInteractionHaptic(widget.store.settings);
-                              _changeSortMode(mode);
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: PromptSortMode.newest,
-                                child: Text('최신순'),
-                              ),
-                              PopupMenuItem(
-                                value: PromptSortMode.oldest,
-                                child: Text('오래된순'),
-                              ),
-                              PopupMenuItem(
-                                value: PromptSortMode.title,
-                                child: Text('이름순'),
-                              ),
-                            ],
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).cardColor,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .outlineVariant
-                                      .withOpacity(0.22),
+                      // Sorting controls (layout toggle removed)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: PopupMenuButton<PromptSortMode>(
+                              tooltip: '정렬',
+                              onSelected: (mode) {
+                                triggerInteractionHaptic(widget.store.settings);
+                                _changeSortMode(mode);
+                              },
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: PromptSortMode.newest,
+                                  child: Text('최신순'),
+                                ),
+                                PopupMenuItem(
+                                  value: PromptSortMode.oldest,
+                                  child: Text('오래된순'),
+                                ),
+                                PopupMenuItem(
+                                  value: PromptSortMode.title,
+                                  child: Text('이름순'),
+                                ),
+                              ],
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).cardColor,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant
+                                        .withOpacity(0.22),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.sort_rounded, size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(_sortModeLabel),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.expand_more_rounded,
+                                      size: 18,
+                                    ),
+                                  ],
                                 ),
                               ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      if (_searchQuery.isNotEmpty && visibleTags.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: visibleTags
+                                    .map(
+                                      (tag) => FilterChip(
+                                        label: Text('#$tag'),
+                                        selected: _selectedTags.contains(tag),
+                                        onSelected: (_) => setState(
+                                          () => _selectedTags.contains(tag)
+                                              ? _selectedTags.remove(tag)
+                                              : _selectedTags.add(tag),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      if (prompts.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: EmptyStateCard(
+                            onCreatePrompt: () => _openEditor(),
+                          ),
+                        )
+                      else ...[
+                        if (pinnedPrompts.isNotEmpty) ...[
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                24,
+                                16,
+                                12,
+                              ),
                               child: Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.sort_rounded, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text(_sortModeLabel),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.expand_more_rounded,
+                                  Icon(
+                                    Icons.push_pin_rounded,
                                     size: 18,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    '고정된 프롬프트',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
-
-                    if (_searchQuery.isNotEmpty && visibleTags.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: visibleTags
-                                  .map(
-                                    (tag) => FilterChip(
-                                      label: Text('#$tag'),
-                                      selected: _selectedTags.contains(tag),
-                                      onSelected: (_) => setState(
-                                        () => _selectedTags.contains(tag)
-                                            ? _selectedTags.remove(tag)
-                                            : _selectedTags.add(tag),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                          SliverPadding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: gridHorizontalPadding,
                             ),
-                          ),
-                        ),
-                      ),
-
-                    if (prompts.isEmpty)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: EmptyStateCard(onCreatePrompt: () => _openEditor()),
-                      )
-                    else ...[
-                      if (pinnedPrompts.isNotEmpty) ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.push_pin_rounded,
-                                  size: 18,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  '고정된 프롬프트',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverGrid(
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: mainAxisSpacing,
-                              crossAxisSpacing: crossAxisSpacing,
-                              mainAxisExtent: mainAxisExtent,
-                            ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, idx) {
+                            sliver: SliverGrid(
+                              gridDelegate: gridDelegate,
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                idx,
+                              ) {
                                 final prompt = pinnedPrompts[idx];
                                 final overallIdx = prompts.indexOf(prompt);
                                 return _buildPromptCard(
@@ -917,36 +1000,38 @@ class _FlowShellState extends State<FlowShell> {
                                   totalCount: prompts.length,
                                   isGrid: true,
                                 );
-                              },
-                              childCount: pinnedPrompts.length,
+                              }, childCount: pinnedPrompts.length),
                             ),
                           ),
-                        ),
-                      ],
-                      for (final entry in monthGroups.entries) ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                            child: Text(
-                              entry.key,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                        ],
+                        for (final entry in monthGroups.entries) ...[
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                24,
+                                16,
+                                12,
+                              ),
+                              child: Text(
+                                entry.key,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          sliver: SliverGrid(
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: mainAxisSpacing,
-                              crossAxisSpacing: crossAxisSpacing,
-                              mainAxisExtent: mainAxisExtent,
+                          SliverPadding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: gridHorizontalPadding,
                             ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, idx) {
+                            sliver: SliverGrid(
+                              gridDelegate: gridDelegate,
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                idx,
+                              ) {
                                 final prompt = entry.value[idx];
                                 final overallIdx = prompts.indexOf(prompt);
                                 return _buildPromptCard(
@@ -955,32 +1040,31 @@ class _FlowShellState extends State<FlowShell> {
                                   totalCount: prompts.length,
                                   isGrid: true,
                                 );
-                              },
-                              childCount: entry.value.length,
+                              }, childCount: entry.value.length),
                             ),
                           ),
-                        ),
+                        ],
                       ],
+                      const SliverToBoxAdapter(child: SizedBox(height: 80)),
                     ],
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 80),
-                    ),
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          triggerInteractionHaptic(widget.store.settings);
-          _openEditor();
-        },
-        backgroundColor: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA),
-        foregroundColor: isDark ? Colors.white : Colors.black,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.edit_outlined),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            triggerInteractionHaptic(widget.store.settings);
+            _openEditor();
+          },
+          backgroundColor: isDark
+              ? const Color(0xFF2C2C2E)
+              : const Color(0xFFE5E5EA),
+          foregroundColor: isDark ? Colors.white : Colors.black,
+          shape: const CircleBorder(),
+          child: const Icon(Icons.edit_outlined),
+        ),
       ),
     );
   }
@@ -997,7 +1081,12 @@ class ShakeCurve extends Curve {
 }
 
 class LockScreen extends StatefulWidget {
-  const LockScreen({super.key, required this.pin, required this.onUnlock, required this.settings});
+  const LockScreen({
+    super.key,
+    required this.pin,
+    required this.onUnlock,
+    required this.settings,
+  });
 
   final String pin;
   final VoidCallback onUnlock;
@@ -1007,7 +1096,8 @@ class LockScreen extends StatefulWidget {
   State<LockScreen> createState() => _LockScreenState();
 }
 
-class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateMixin {
+class _LockScreenState extends State<LockScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _pinController = TextEditingController();
   String? _error;
   bool _isUnlocking = false;
@@ -1112,7 +1202,10 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
     if (_failedAttempts >= 10) {
       final now = DateTime.now();
       final lockoutTime = now.add(const Duration(minutes: 1));
-      await prefs.setInt('lockscreen_lockout_until', lockoutTime.millisecondsSinceEpoch);
+      await prefs.setInt(
+        'lockscreen_lockout_until',
+        lockoutTime.millisecondsSinceEpoch,
+      );
       _startLockoutCountdown(60);
     }
   }
@@ -1212,12 +1305,16 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
                           keyboardType: TextInputType.number,
                           maxLength: 4,
                           textAlign: TextAlign.center,
-                          enabled: !_isUnlocking && !isLockedOut && !_loadingState,
+                          enabled:
+                              !_isUnlocking && !isLockedOut && !_loadingState,
                           decoration: InputDecoration(
                             errorText: _error,
                             counterText: '',
                             prefixIcon: isLockedOut
-                                ? const Icon(Icons.timer, color: Colors.redAccent)
+                                ? const Icon(
+                                    Icons.timer,
+                                    color: Colors.redAccent,
+                                  )
                                 : null,
                           ),
                           onSubmitted: (_) => _check(),
@@ -1226,7 +1323,10 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: (_isUnlocking || isLockedOut || _loadingState) ? null : _check,
+                            onPressed:
+                                (_isUnlocking || isLockedOut || _loadingState)
+                                ? null
+                                : _check,
                             child: _isUnlocking
                                 ? const SizedBox(
                                     width: 18,
