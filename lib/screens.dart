@@ -361,7 +361,6 @@ class _FlowShellState extends State<FlowShell> {
         ],
       ),
     );
-    controller.dispose();
     return result;
   }
 
@@ -370,6 +369,53 @@ class _FlowShellState extends State<FlowShell> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _closeSettingsSheet(BuildContext sheetContext) async {
+    Navigator.pop(sheetContext);
+    await WidgetsBinding.instance.endOfFrame;
+  }
+
+  Future<void> _handleToggleLock(BuildContext sheetContext, bool enabled) async {
+    triggerInteractionHaptic(widget.store.settings);
+    await _closeSettingsSheet(sheetContext);
+    if (!mounted) return;
+
+    if (enabled && widget.store.settings.pinCode.isEmpty) {
+      final pin = await _showPinDialog(title: 'PIN 설정');
+      if (!mounted || pin == null) return;
+
+      widget.store.settings = widget.store.settings.copyWith(
+        lockEnabled: true,
+        pinCode: pin,
+      );
+      await widget.onStoreChanged();
+      return;
+    }
+
+    widget.store.settings = widget.store.settings.copyWith(
+      lockEnabled: enabled,
+    );
+    await widget.onStoreChanged();
+  }
+
+  Future<void> _handleChangePin(BuildContext sheetContext) async {
+    triggerInteractionHaptic(widget.store.settings);
+    await _closeSettingsSheet(sheetContext);
+    if (!mounted) return;
+
+    final pin = await _showPinDialog(title: 'PIN 변경');
+    if (!mounted || pin == null) return;
+
+    widget.store.settings = widget.store.settings.copyWith(
+      pinCode: pin,
+    );
+    await widget.onStoreChanged();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('PIN이 변경되었습니다.')));
   }
 
   Future<void> _handleBackup() async {
@@ -476,42 +522,8 @@ class _FlowShellState extends State<FlowShell> {
           widget.store.settings = widget.store.settings.copyWith(darkMode: v);
           widget.onStoreChanged();
         },
-        onToggleLock: (v) async {
-          triggerInteractionHaptic(widget.store.settings);
-          if (v && widget.store.settings.pinCode.isEmpty) {
-            Navigator.pop(ctx);
-            final pin = await _showPinDialog(title: 'PIN 설정');
-            if (pin != null) {
-              widget.store.settings = widget.store.settings.copyWith(
-                lockEnabled: true,
-                pinCode: pin,
-              );
-              await widget.onStoreChanged();
-            }
-          } else {
-            Navigator.pop(ctx);
-            widget.store.settings = widget.store.settings.copyWith(
-              lockEnabled: v,
-            );
-            await widget.onStoreChanged();
-          }
-        },
-        onChangePin: () async {
-          triggerInteractionHaptic(widget.store.settings);
-          Navigator.pop(ctx);
-          final pin = await _showPinDialog(title: 'PIN 변경');
-          if (pin != null) {
-            widget.store.settings = widget.store.settings.copyWith(
-              pinCode: pin,
-            );
-            await widget.onStoreChanged();
-            if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('PIN이 변경되었습니다.')));
-            }
-          }
-        },
+        onToggleLock: (v) => _handleToggleLock(ctx, v),
+        onChangePin: () => _handleChangePin(ctx),
         onLockNow: () {
           triggerInteractionHaptic(widget.store.settings);
           Navigator.pop(ctx);

@@ -62,6 +62,39 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('Flow app enables lock without closing', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    SharedPreferences.setMockInitialValues({});
+
+    await tester.pumpWidget(const FlowApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.settings_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SwitchListTile).at(2));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '1234');
+    await tester.tap(find.byType(FilledButton).last);
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('flow-shell')), findsOneWidget);
+
+    final prefs = await SharedPreferences.getInstance();
+    final rawStore = prefs.getString('flow_store_v1')!;
+    expect(rawStore, contains('"lockEnabled":true'));
+    expect(rawStore, contains('"pinCode":"1234"'));
+  });
+
   testWidgets('LockScreen lockout after 10 failed attempts', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -129,5 +162,4 @@ void main() {
     expect(find.text('폴더'), findsOneWidget);
   });
 }
-
 
