@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'backup_file_io.dart';
 import 'models.dart';
 import 'store.dart';
 import 'widgets.dart';
@@ -386,9 +387,11 @@ class _FlowShellState extends State<FlowShell> {
         type: FileType.custom,
         allowedExtensions: ['json'],
         bytes: backupBytes,
+        lockParentWindow: true,
       );
 
       if (result == null) return;
+      await writeBackupFile(result, backupBytes);
       _showMessage('백업 파일이 저장되었습니다.');
     } catch (e) {
       _showMessage('백업 저장 중 오류가 발생했습니다.');
@@ -401,9 +404,11 @@ class _FlowShellState extends State<FlowShell> {
       type: FileType.custom,
       allowedExtensions: ['json'],
       withData: true,
+      lockParentWindow: true,
     );
 
     if (result == null) return;
+    if (!mounted) return;
 
     final confirmed =
         await showDialog<bool>(
@@ -434,7 +439,7 @@ class _FlowShellState extends State<FlowShell> {
     if (!confirmed) return;
 
     try {
-      final backupBytes = result.files.single.bytes;
+      final backupBytes = await readPickedFileBytes(result.files.single);
       if (backupBytes == null || backupBytes.isEmpty) {
         throw const FormatException('Empty backup file');
       }

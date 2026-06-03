@@ -1,17 +1,29 @@
-# save_prompt
+# Flow
 
-A new Flutter project.
+Smart AI prompt management tool built with Flutter.
 
-## Getting Started
+## Run on Windows
 
-This project is a starting point for a Flutter application.
+Install Visual Studio with the `Desktop development with C++` workload. Flutter
+uses this toolchain to build Windows desktop apps.
 
-A few resources to get you started if this is your first Flutter project:
+Enable Windows desktop support in Flutter if it is not already enabled:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```powershell
+flutter config --enable-windows-desktop
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Install dependencies and run the app:
+
+```powershell
+flutter pub get
+flutter run -d windows
+```
+
+Build a release executable:
+
+```powershell
+flutter build windows --release
+```
+
+The release output is created under `build\windows\x64\runner\Release`.
