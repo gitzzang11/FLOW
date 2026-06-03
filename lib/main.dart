@@ -5,13 +5,26 @@ import 'screens.dart';
 import 'store.dart';
 import 'theme.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const FlowApp());
+  runApp(FlowApp(initialBackupPath: _firstStartupBackupPath(args)));
+}
+
+String? _firstStartupBackupPath(List<String> args) {
+  for (final arg in args) {
+    final path = arg.trim();
+    final lowerPath = path.toLowerCase();
+    if (lowerPath.endsWith('.flow') || lowerPath.endsWith('.json')) {
+      return path;
+    }
+  }
+  return null;
 }
 
 class FlowApp extends StatefulWidget {
-  const FlowApp({super.key});
+  const FlowApp({super.key, this.initialBackupPath});
+
+  final String? initialBackupPath;
 
   @override
   State<FlowApp> createState() => _FlowAppState();
@@ -142,6 +155,7 @@ class _FlowAppState extends State<FlowApp> {
           : FlowShell(
               key: const ValueKey('flow-shell'),
               store: _store,
+              initialBackupPath: widget.initialBackupPath,
               onStoreChanged: _saveStore,
               onRequireRelock: _handleRelock,
             ),

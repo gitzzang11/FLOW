@@ -27,3 +27,22 @@ flutter build windows --release
 ```
 
 The release output is created under `build\windows\x64\runner\Release`.
+
+## Build the Windows installer
+
+Install [Inno Setup 6](https://jrsoftware.org/isinfo.php), then run:
+
+```powershell
+.\scripts\build_windows_installer.ps1
+```
+
+The installer is created under `build\installer`.
+
+The installer:
+
+- installs Flow per user under `%LOCALAPPDATA%\Programs\Flow`
+- creates `%USERPROFILE%\Documents\Flow` for Flow backup files
+- registers `.flow` as the Flow backup file type
+
+Flow now exports backups as `.flow` files. Existing `.json` backups can still be
+imported.

@@ -16,11 +16,13 @@ class FlowShell extends StatefulWidget {
   const FlowShell({
     super.key,
     required this.store,
+    this.initialBackupPath,
     required this.onStoreChanged,
     required this.onRequireRelock,
   });
 
   final PromptStore store;
+  final String? initialBackupPath;
   final Future<void> Function() onStoreChanged;
   final VoidCallback onRequireRelock;
 
@@ -40,6 +42,13 @@ class _FlowShellState extends State<FlowShell> {
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: _searchQuery);
+    final startupPath = widget.initialBackupPath;
+    if (startupPath != null && startupPath.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _handleStartupBackup(startupPath);
+      });
+    }
   }
 
   @override
@@ -479,14 +488,16 @@ class _FlowShellState extends State<FlowShell> {
       final backupBytes = Uint8List.fromList(
         utf8.encode(widget.store.exportToJson()),
       );
+      final initialDirectory = await getDefaultBackupDirectory();
       final fileName =
-          'flow_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+          'flow_backup_${DateTime.now().millisecondsSinceEpoch}.flow';
 
       final result = await FilePicker.platform.saveFile(
         dialogTitle: '백업 파일 저장',
+        initialDirectory: initialDirectory,
         fileName: fileName,
         type: FileType.custom,
-        allowedExtensions: ['json'],
+        allowedExtensions: ['flow'],
         bytes: backupBytes,
         lockParentWindow: true,
       );
@@ -501,9 +512,11 @@ class _FlowShellState extends State<FlowShell> {
 
   Future<void> _handleRestore() async {
     triggerInteractionHaptic(widget.store.settings);
+    final initialDirectory = await getDefaultBackupDirectory();
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['json'],
+      allowedExtensions: ['flow', 'json'],
+      initialDirectory: initialDirectory,
       withData: true,
       lockParentWindow: true,
     );
@@ -556,6 +569,57 @@ class _FlowShellState extends State<FlowShell> {
       _showMessage('백업 파일 형식이 올바르지 않습니다.');
     } catch (e) {
       _showMessage('백업 파일을 불러오는 중 오류가 발생했습니다.');
+    }
+  }
+
+  Future<void> _handleStartupBackup(String path) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Flow file import'),
+            content: Text(
+              'Import "$path" into Flow? Current Flow data will be replaced.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  Navigator.pop(ctx, false);
+                },
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  Navigator.pop(ctx, true);
+                },
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    try {
+      final backupBytes = await readBackupFileAtPath(path);
+      if (backupBytes == null || backupBytes.isEmpty) {
+        throw const FormatException('Empty backup file');
+      }
+
+      final jsonString = utf8.decode(backupBytes);
+      setState(() {
+        widget.store.importFromJsonString(jsonString);
+      });
+
+      await widget.onStoreChanged();
+      _showMessage('Flow file imported.');
+    } on FormatException {
+      _showMessage('The Flow file format is invalid.');
+    } catch (e) {
+      _showMessage('Could not import the Flow file.');
     }
   }
 
