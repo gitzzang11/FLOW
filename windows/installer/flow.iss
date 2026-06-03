@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.4.1"
 #endif
 
 #ifndef BuildOutput
@@ -30,8 +30,8 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ChangesAssociations=yes
 CloseApplications=yes

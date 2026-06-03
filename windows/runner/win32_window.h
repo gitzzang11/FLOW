@@ -13,16 +13,15 @@
 class Win32Window {
  public:
   struct Point {
-    unsigned int x;
-    unsigned int y;
-    Point(unsigned int x, unsigned int y) : x(x), y(y) {}
+    int x;
+    int y;
+    Point(int x, int y) : x(x), y(y) {}
   };
 
   struct Size {
-    unsigned int width;
-    unsigned int height;
-    Size(unsigned int width, unsigned int height)
-        : width(width), height(height) {}
+    int width;
+    int height;
+    Size(int width, int height) : width(width), height(height) {}
   };
 
   Win32Window();
@@ -38,6 +37,9 @@ class Win32Window {
 
   // Show the current window. Returns true if the window was successfully shown.
   bool Show();
+
+  // Sets the Win32 show command used when Show is called.
+  void SetInitialShowCommand(int show_command);
 
   // Release OS resources associated with window.
   void Destroy();
@@ -91,6 +93,7 @@ class Win32Window {
   static void UpdateTheme(HWND const window);
 
   bool quit_on_close_ = false;
+  int initial_show_command_ = SW_SHOWNORMAL;
 
   // window handle for top level window.
   HWND window_handle_ = nullptr;

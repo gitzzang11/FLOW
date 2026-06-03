@@ -2,6 +2,8 @@
 
 Smart AI prompt management tool built with Flutter.
 
+This project is maintained as a Windows-only desktop app.
+
 ## Run on Windows
 
 Install Visual Studio with the `Desktop development with C++` workload. Flutter

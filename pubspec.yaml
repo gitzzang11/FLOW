@@ -4,7 +4,7 @@ description: "Smart AI Prompt Management Tool, Flow"
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 1.4.0+18
+version: 1.4.1+19
 
 environment:
   sdk: ^3.11.4
@@ -38,14 +38,7 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
 
 flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#0F766E"
-  adaptive_icon_foreground: "assets/icon/app_icon.png"
-  web:
-    generate: true
-    image_path: "assets/icon/app_icon.png"
   windows:
     generate: true
     image_path: "assets/icon/app_icon.png"
