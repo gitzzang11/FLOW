@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'models.dart';
@@ -857,10 +858,16 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   }
 
   Future<void> _pickMoreColors(int segmentIdx) async {
+    final seg = _segments[segmentIdx];
     final color = await showDialog<Color>(
       context: context,
-      builder: (ctx) =>
-          ColorPickerDialog(presets: _presetColors, settings: widget.settings),
+      builder: (ctx) => ColorPickerDialog(
+        initialColor: Color(seg.colorValue),
+        presets: _presetColors,
+        settings: widget.settings,
+        favoriteColors: widget.favoriteColors,
+        onToggleFavorite: widget.onToggleFavorite,
+      ),
     );
 
     if (color != null) {
@@ -1118,10 +1125,16 @@ class ColorPickerDialog extends StatefulWidget {
     super.key,
     required this.presets,
     required this.settings,
+    this.initialColor,
+    required this.favoriteColors,
+    required this.onToggleFavorite,
   });
 
   final List<Color> presets;
   final AppSettings settings;
+  final Color? initialColor;
+  final List<int> favoriteColors;
+  final ValueChanged<int> onToggleFavorite;
 
   @override
   State<ColorPickerDialog> createState() => _ColorPickerDialogState();
@@ -1129,177 +1142,866 @@ class ColorPickerDialog extends StatefulWidget {
 
 class _ColorPickerDialogState extends State<ColorPickerDialog> {
   final TextEditingController _hexController = TextEditingController();
-  Color? _customColor;
-  String? _errorText;
+  final TextEditingController _field1Controller = TextEditingController();
+  final TextEditingController _field2Controller = TextEditingController();
+  final TextEditingController _field3Controller = TextEditingController();
+
+  late double _hue; // 0.0 to 360.0
+  late double _saturation; // 0.0 to 1.0
+  late double _value; // 0.0 to 1.0
+
+  String _colorFormat = 'RGB'; // 'RGB', 'HSV', 'HSL'
+
+  late List<int> _favoriteColors;
+  late int _selectedCustomSlotIndex;
+
+  bool _updatingFields = false;
+
+  // Basic colors (48 colors matching the image)
+  static const List<Color> _basicColors = [
+    // Row 1
+    Color(0xFFFF8A8A), Color(0xFFE52E2E), Color(0xFFB33A3A), Color(0xFF8B0000), Color(0xFF5A0000),
+    Color(0xFFAEF3F9), Color(0xFF6AE3F0), Color(0xFF3D9CF5), Color(0xFF0F4CFC), Color(0xFF0A2C9E), Color(0xFF1F3D7A), Color(0xFF0A0F5A),
+    // Row 2
+    Color(0xFFFFFFA6), Color(0xFFECEC13), Color(0xFFFFB366), Color(0xFFE68033), Color(0xFF8B5A2B), Color(0xFF8B8B2F),
+    Color(0xFF9999FF), Color(0xFF6B4CFF), Color(0xFF4CA6FF), Color(0xFF0A0F3D), Color(0xFF5A0A5A), Color(0xFF3D0A3D),
+    // Row 3
+    Color(0xFFB3FFB3), Color(0xFF66FF66), Color(0xFF33CC33), Color(0xFF009933), Color(0xFF006622), Color(0xFF8B8B5F),
+    Color(0xFFFFB3D9), Color(0xFFFF80DF), Color(0xFFFF4DFF), Color(0xFFFF007F), Color(0xFF8A8AB3), Color(0xFF8B1A4F),
+    // Row 4
+    Color(0xFF1E4D1E), Color(0xFF0F3A0F), Color(0xFF1A3F3F), Color(0xFF2E5E5E), Color(0xFF152A2A), Color(0xFF4A707A),
+    Color(0xFF5A005A), Color(0xFF3D003D), Color(0xFF000000), Color(0xFF555555), Color(0xFFAAAAAA), Color(0xFFFFFFFF),
+  ];
 
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialColor ?? const Color(0xFF183153);
+    final hsv = HSVColor.fromColor(initial);
+    _hue = hsv.hue;
+    _saturation = hsv.saturation;
+    _value = hsv.value;
+
+    _favoriteColors = List<int>.from(widget.favoriteColors);
+    _selectedCustomSlotIndex = 0;
+    // Set initial selected slot to the first empty slot or 0
+    for (int i = 0; i < 24; i++) {
+      if (i >= _favoriteColors.length) {
+        _selectedCustomSlotIndex = i;
+        break;
+      }
+    }
+
     _hexController.addListener(_onHexChanged);
+    _field1Controller.addListener(_onNumericFieldChanged);
+    _field2Controller.addListener(_onNumericFieldChanged);
+    _field3Controller.addListener(_onNumericFieldChanged);
+
+    _updateTextControllers();
   }
 
   @override
   void dispose() {
     _hexController.removeListener(_onHexChanged);
+    _field1Controller.removeListener(_onNumericFieldChanged);
+    _field2Controller.removeListener(_onNumericFieldChanged);
+    _field3Controller.removeListener(_onNumericFieldChanged);
+
     _hexController.dispose();
+    _field1Controller.dispose();
+    _field2Controller.dispose();
+    _field3Controller.dispose();
     super.dispose();
   }
 
   void _onHexChanged() {
+    if (_updatingFields) return;
     final text = _hexController.text.trim().replaceAll('#', '');
-    if (text.isEmpty) {
+    if (text.length == 6) {
+      final parsed = int.tryParse(text, radix: 16);
+      if (parsed != null) {
+        final color = Color(0xFF000000 | parsed);
+        final hsv = HSVColor.fromColor(color);
+        setState(() {
+          _hue = hsv.hue;
+          _saturation = hsv.saturation;
+          _value = hsv.value;
+          _updateTextControllers(excludeHex: true);
+        });
+      }
+    }
+  }
+
+  void _onNumericFieldChanged() {
+    if (_updatingFields) return;
+    final String val1 = _field1Controller.text.trim();
+    final String val2 = _field2Controller.text.trim();
+    final String val3 = _field3Controller.text.trim();
+
+    final double? num1 = double.tryParse(val1);
+    final double? num2 = double.tryParse(val2);
+    final double? num3 = double.tryParse(val3);
+
+    if (num1 == null || num2 == null || num3 == null) return;
+
+    if (_colorFormat == 'RGB') {
+      final r = num1.clamp(0.0, 255.0).toInt();
+      final g = num2.clamp(0.0, 255.0).toInt();
+      final b = num3.clamp(0.0, 255.0).toInt();
+      final color = Color.fromARGB(255, r, g, b);
+      final hsv = HSVColor.fromColor(color);
       setState(() {
-        _customColor = null;
-        _errorText = null;
+        _hue = hsv.hue;
+        _saturation = hsv.saturation;
+        _value = hsv.value;
+        _updateTextControllers(excludeNumeric: true);
       });
-      return;
+    } else if (_colorFormat == 'HSV') {
+      final h = num1.clamp(0.0, 360.0);
+      final s = num2.clamp(0.0, 100.0) / 100.0;
+      final v = num3.clamp(0.0, 100.0) / 100.0;
+      setState(() {
+        _hue = h;
+        _saturation = s;
+        _value = v;
+        _updateTextControllers(excludeNumeric: true);
+      });
+    } else if (_colorFormat == 'HSL') {
+      final h = num1.clamp(0.0, 360.0);
+      final s = num2.clamp(0.0, 100.0) / 100.0;
+      final l = num3.clamp(0.0, 100.0) / 100.0;
+      // Convert HSL to HSV
+      final double v = l + s * math.min(l, 1.0 - l);
+      final double sv = (v == 0.0) ? 0.0 : 2.0 * (1.0 - l / v);
+      setState(() {
+        _hue = h;
+        _saturation = sv;
+        _value = v;
+        _updateTextControllers(excludeNumeric: true);
+      });
+    }
+  }
+
+  void _updateTextControllers({
+    bool excludeHex = false,
+    bool excludeNumeric = false,
+  }) {
+    if (_updatingFields) return;
+    _updatingFields = true;
+
+    final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+
+    if (!excludeHex) {
+      final rStr = activeColor.red.toRadixString(16).padLeft(2, '0');
+      final gStr = activeColor.green.toRadixString(16).padLeft(2, '0');
+      final bStr = activeColor.blue.toRadixString(16).padLeft(2, '0');
+      _hexController.text = '#${rStr}${gStr}${bStr}'.toUpperCase();
     }
 
-    final hexRegex = RegExp(r'^[0-9a-fA-F]{6}$');
-    if (!hexRegex.hasMatch(text)) {
-      setState(() {
-        _customColor = null;
-        _errorText = '올바른 6자리 16진수 코드를 입력하세요. (예: FF5733)';
-      });
-      return;
+    if (!excludeNumeric) {
+      if (_colorFormat == 'RGB') {
+        _field1Controller.text = activeColor.red.toString();
+        _field2Controller.text = activeColor.green.toString();
+        _field3Controller.text = activeColor.blue.toString();
+      } else if (_colorFormat == 'HSV') {
+        _field1Controller.text = _hue.round().toString();
+        _field2Controller.text = (_saturation * 100).round().toString();
+        _field3Controller.text = (_value * 100).round().toString();
+      } else if (_colorFormat == 'HSL') {
+        // Convert HSV to HSL
+        final double l = _value * (1.0 - _saturation / 2.0);
+        final double s = (l == 0.0 || l == 1.0)
+            ? 0.0
+            : (_value - l) / math.min(l, 1.0 - l);
+        _field1Controller.text = _hue.round().toString();
+        _field2Controller.text = (s * 100).round().toString();
+        _field3Controller.text = (l * 100).round().toString();
+      }
     }
 
-    final parsedValue = int.tryParse(text, radix: 16);
-    if (parsedValue != null) {
-      setState(() {
-        _customColor = Color(0xFF000000 | parsedValue);
-        _errorText = null;
-      });
+    _updatingFields = false;
+  }
+
+  void _handleSpectrumDrag(Offset localPosition, Size size) {
+    final double dx = localPosition.dx.clamp(0.0, size.width);
+    final double dy = localPosition.dy.clamp(0.0, size.height);
+
+    final double hue = (dx / size.width) * 360.0;
+    final double saturation = 1.0 - (dy / size.height);
+
+    setState(() {
+      _hue = hue;
+      _saturation = saturation;
+      _updateTextControllers();
+    });
+  }
+
+  void _handleSliderDrag(Offset localPosition, Size size) {
+    final double dy = localPosition.dy.clamp(0.0, size.height);
+    final double value = 1.0 - (dy / size.height);
+
+    setState(() {
+      _value = value;
+      _updateTextControllers();
+    });
+  }
+
+  void _addCurrentColorToCustom() {
+    final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+    final colorVal = activeColor.value;
+
+    setState(() {
+      if (_selectedCustomSlotIndex < _favoriteColors.length) {
+        _favoriteColors[_selectedCustomSlotIndex] = colorVal;
+      } else {
+        while (_favoriteColors.length < _selectedCustomSlotIndex) {
+          _favoriteColors.add(0xFF000000);
+        }
+        _favoriteColors.add(colorVal);
+      }
+
+      if (!widget.favoriteColors.contains(colorVal)) {
+        widget.onToggleFavorite(colorVal);
+      }
+    });
+  }
+
+  List<String> get _numericLabels {
+    if (_colorFormat == 'RGB') {
+      return ['빨강', '녹색', '파랑'];
+    } else if (_colorFormat == 'HSV') {
+      return ['색상', '채도', '명도'];
     } else {
-      setState(() {
-        _customColor = null;
-        _errorText = '유효하지 않은 색상 코드입니다.';
-      });
+      return ['색상', '채도', '밝기'];
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return AlertDialog(
-      title: const Text('색상 선택'),
-      content: SizedBox(
-        width: 320,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '기본 색상',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 6,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
+    return Dialog(
+      backgroundColor: const Color(0xFF202020),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Container(
+        width: 640,
+        height: 520,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title and Close Button
+            Row(
+              children: [
+                const Text(
+                  '색 편집',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                itemCount: widget.presets.length,
-                itemBuilder: (ctx, idx) {
-                  final color = widget.presets[idx];
-                  return GestureDetector(
-                    onTap: () {
-                      triggerInteractionHaptic(widget.settings);
-                      Navigator.pop(ctx, color);
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: () {
+                    triggerInteractionHaptic(widget.settings);
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Upper Section
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Spectrum Picker
+                Container(
+                  width: 240,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.black45),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final size = Size(constraints.maxWidth, constraints.maxHeight);
+                      return GestureDetector(
+                        onPanUpdate: (details) => _handleSpectrumDrag(details.localPosition, size),
+                        onPanDown: (details) => _handleSpectrumDrag(details.localPosition, size),
+                        child: CustomPaint(
+                          painter: const HueSaturationPainter(),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Positioned(
+                                left: (_hue / 360.0) * size.width - 8,
+                                top: (1.0 - _saturation) * size.height - 8,
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
                     },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark ? Colors.white24 : Colors.black12,
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Solid Color Preview
+                Container(
+                  width: 40,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor(),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.black45),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                // Brightness Slider
+                Container(
+                  width: 16,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.black45),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final size = Size(constraints.maxWidth, constraints.maxHeight);
+                      return GestureDetector(
+                        onPanUpdate: (details) => _handleSliderDrag(details.localPosition, size),
+                        onPanDown: (details) => _handleSliderDrag(details.localPosition, size),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(3),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    HSVColor.fromAHSV(1.0, _hue, _saturation, 1.0).toColor(),
+                                    Colors.black,
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: size.width / 2 - 8,
+                              top: (1.0 - _value) * size.height - 8,
+                              child: Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.black54),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.3),
+                                      blurRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 16),
-              const Text(
-                '사용자 정의 색상',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _hexController,
-                      maxLength: 7,
-                      decoration: InputDecoration(
-                        prefixText: '#',
-                        labelText: '색상 코드 (HEX)',
-                        hintText: 'FF5733',
-                        errorText: _errorText,
-                        errorMaxLines: 2,
-                        counterText: '',
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 24),
+
+                // Input Fields Panel
+                Expanded(
+                  child: SizedBox(
+                    height: 220,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // HEX Input
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 36,
+                                child: TextField(
+                                  controller: _hexController,
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  decoration: InputDecoration(
+                                    fillColor: const Color(0xFF2C2C2E),
+                                    filled: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(color: Colors.white24),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(color: Colors.white24),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const SizedBox(width: 40),
+                          ],
                         ),
-                      ),
-                      textCapitalization: TextCapitalization.characters,
+                        const SizedBox(height: 8),
+
+                        // Format Dropdown
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 36,
+                                child: DropdownButtonFormField<String>(
+                                  value: _colorFormat,
+                                  dropdownColor: const Color(0xFF2C2C2E),
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  decoration: InputDecoration(
+                                    fillColor: const Color(0xFF2C2C2E),
+                                    filled: true,
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(color: Colors.white24),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      borderSide: const BorderSide(color: Colors.white24),
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(value: 'RGB', child: Text('RGB', style: TextStyle(color: Colors.white))),
+                                    DropdownMenuItem(value: 'HSV', child: Text('HSV', style: TextStyle(color: Colors.white))),
+                                    DropdownMenuItem(value: 'HSL', child: Text('HSL', style: TextStyle(color: Colors.white))),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v != null) {
+                                      setState(() {
+                                        _colorFormat = v;
+                                        _updateTextControllers();
+                                      });
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const SizedBox(width: 40),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Numeric Inputs
+                        ...List.generate(3, (idx) {
+                          final label = _numericLabels[idx];
+                          final controller = idx == 0
+                              ? _field1Controller
+                              : (idx == 1 ? _field2Controller : _field3Controller);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 36,
+                                    child: TextField(
+                                      controller: controller,
+                                      keyboardType: TextInputType.number,
+                                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                                      decoration: InputDecoration(
+                                        fillColor: const Color(0xFF2C2C2E),
+                                        filled: true,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(6),
+                                          borderSide: const BorderSide(color: Colors.white24),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(6),
+                                          borderSide: const BorderSide(color: Colors.white24),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                SizedBox(
+                                  width: 40,
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color:
-                          _customColor ??
-                          (isDark ? Colors.grey[800] : Colors.grey[200]),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isDark ? Colors.white24 : Colors.black12,
-                        width: 2,
-                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Lower Section: Grids
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Basic Colors Grid
+                  Expanded(
+                    flex: 12,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '기본 색',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: GridView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 12,
+                              mainAxisSpacing: 2,
+                              crossAxisSpacing: 2,
+                            ),
+                            itemCount: _basicColors.length,
+                            itemBuilder: (context, index) {
+                              final color = _basicColors[index];
+                              final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+                              final isSelected = activeColor.value == color.value;
+                              return BasicColorCircle(
+                                color: color,
+                                isSelected: isSelected,
+                                onTap: () {
+                                  triggerInteractionHaptic(widget.settings);
+                                  final hsv = HSVColor.fromColor(color);
+                                  setState(() {
+                                    _hue = hsv.hue;
+                                    _saturation = hsv.saturation;
+                                    _value = hsv.value;
+                                    _updateTextControllers();
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    child: _customColor == null
-                        ? Icon(
-                            Icons.question_mark_rounded,
-                            size: 18,
-                            color: isDark ? Colors.white30 : Colors.black26,
-                          )
-                        : null,
+                  ),
+                  const SizedBox(width: 24),
+
+                  // Custom Colors Grid
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              '사용자 지정 색',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                            const Spacer(),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(4),
+                                onTap: _addCurrentColorToCustom,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.white30),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: GridView.builder(
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 6,
+                              mainAxisSpacing: 2,
+                              crossAxisSpacing: 2,
+                            ),
+                            itemCount: 24,
+                            itemBuilder: (context, index) {
+                              final isSelected = index == _selectedCustomSlotIndex;
+                              final isEmpty = index >= _favoriteColors.length;
+                              final color = isEmpty ? Colors.transparent : Color(_favoriteColors[index]);
+                              return CustomColorCircle(
+                                color: color,
+                                isSelected: isSelected,
+                                isEmpty: isEmpty,
+                                onTap: () {
+                                  triggerInteractionHaptic(widget.settings);
+                                  setState(() {
+                                    _selectedCustomSlotIndex = index;
+                                    if (!isEmpty) {
+                                      final hsv = HSVColor.fromColor(color);
+                                      _hue = hsv.hue;
+                                      _saturation = hsv.saturation;
+                                      _value = hsv.value;
+                                      _updateTextControllers();
+                                    }
+                                  });
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
+            ),
+
+            // Bottom Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    triggerInteractionHaptic(widget.settings);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('취소', style: TextStyle(color: Colors.white70)),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                  ),
+                  onPressed: () {
+                    triggerInteractionHaptic(widget.settings);
+                    final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+                    Navigator.pop(context, activeColor);
+                  },
+                  child: const Text('확인'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------- Custom Painters and Helper Widgets -----------------
+
+class HueSaturationPainter extends CustomPainter {
+  const HueSaturationPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+
+    // Hue gradient
+    final huePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFFFF0000),
+          Color(0xFFFFFF00),
+          Color(0xFF00FF00),
+          Color(0xFF00FFFF),
+          Color(0xFF0000FF),
+          Color(0xFFFF00FF),
+          Color(0xFFFF0000),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, huePaint);
+
+    // Saturation gradient
+    final satPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: [
+          Colors.white,
+          Color(0x00FFFFFF),
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, satPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class DashedCirclePainter extends CustomPainter {
+  final Color color;
+  const DashedCirclePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double radius = size.width / 2;
+    final Offset center = Offset(radius, radius);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    const double dashLength = 3;
+    const double gapLength = 3;
+    final double circumference = 2 * math.pi * radius;
+    final int dashCount = (circumference / (dashLength + gapLength)).floor();
+
+    for (int i = 0; i < dashCount; i++) {
+      final double startAngle = (i * (dashLength + gapLength)) / radius;
+      final double sweepAngle = dashLength / radius;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DashedCirclePainter oldDelegate) => oldDelegate.color != color;
+}
+
+class CustomColorCircle extends StatelessWidget {
+  const CustomColorCircle({
+    super.key,
+    required this.color,
+    required this.isSelected,
+    required this.isEmpty,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool isSelected;
+  final bool isEmpty;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child;
+    if (isEmpty) {
+      child = CustomPaint(
+        size: const Size(16, 16),
+        painter: DashedCirclePainter(color: Colors.white30),
+      );
+    } else {
+      child = Container(
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: color == Colors.white ? Colors.black38 : Colors.white24,
+            width: 1,
+          ),
+        ),
+      );
+    }
+
+    if (isSelected) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(22, 22),
+                painter: const DashedCirclePainter(color: Colors.white70),
+              ),
+              child,
             ],
           ),
         ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 24,
+        height: 24,
+        child: Center(child: child),
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            triggerInteractionHaptic(widget.settings);
-            Navigator.pop(context);
-          },
-          child: const Text('취소'),
+    );
+  }
+}
+
+class BasicColorCircle extends StatelessWidget {
+  const BasicColorCircle({
+    super.key,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.all(3),
+        width: 16,
+        height: 16,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected
+                ? Colors.white
+                : (color == Colors.white ? Colors.black38 : Colors.white12),
+            width: isSelected ? 2 : 1,
+          ),
         ),
-        FilledButton(
-          onPressed: _customColor == null
-              ? null
-              : () {
-                  triggerInteractionHaptic(widget.settings);
-                  Navigator.pop(context, _customColor);
-                },
-          child: const Text('적용'),
-        ),
-      ],
+      ),
     );
   }
 }

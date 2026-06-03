@@ -51,6 +51,7 @@ try {
   $iscc = Find-InnoSetupCompiler $InnoSetupCompiler
 
   flutter pub get
+  dart run flutter_launcher_icons
   flutter build windows --release
 
   & $iscc "/DMyAppVersion=$appVersion" $issPath
