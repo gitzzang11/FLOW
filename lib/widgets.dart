@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -140,7 +141,7 @@ class FolderSidebar extends StatelessWidget {
   }
 }
 
-class _FolderTile extends StatelessWidget {
+class _FolderTile extends StatefulWidget {
   const _FolderTile({
     required this.label,
     required this.count,
@@ -158,17 +159,25 @@ class _FolderTile extends StatelessWidget {
   final Widget? trailing;
 
   @override
+  State<_FolderTile> createState() => _FolderTileState();
+}
+
+class _FolderTileState extends State<_FolderTile> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scheme = Theme.of(context).colorScheme;
 
-    final nameColor = selected
+    final nameColor = widget.selected
         ? (isDark ? Colors.white : Colors.black)
         : (isDark
               ? Colors.white.withOpacity(0.7)
               : Colors.black.withOpacity(0.7));
 
-    final countColor = selected
+    final countColor = widget.selected
         ? (isDark
               ? Colors.white.withOpacity(0.6)
               : Colors.black.withOpacity(0.5))
@@ -176,24 +185,34 @@ class _FolderTile extends StatelessWidget {
               ? Colors.white.withOpacity(0.4)
               : Colors.black.withOpacity(0.4));
 
-    final iconColor = selected
+    final iconColor = widget.selected
         ? scheme.primary
         : (isDark
               ? Colors.white.withOpacity(0.4)
               : Colors.black.withOpacity(0.4));
 
-    final tileBg = selected
+    final tileBg = widget.selected
         ? (isDark
               ? Colors.white.withOpacity(0.08)
               : scheme.primary.withOpacity(0.08))
-        : Colors.transparent;
+        : (_isHovered || _isFocused
+            ? (isDark
+                ? Colors.white.withOpacity(0.04)
+                : scheme.primary.withOpacity(0.04))
+            : Colors.transparent);
 
     final border = Border.all(
-      color: selected
-          ? (isDark
-                ? Colors.white.withOpacity(0.1)
-                : scheme.primary.withOpacity(0.15))
-          : Colors.transparent,
+      color: _isFocused
+          ? scheme.primary
+          : (widget.selected
+              ? (isDark
+                    ? Colors.white.withOpacity(0.1)
+                    : scheme.primary.withOpacity(0.15))
+              : (_isHovered
+                  ? (isDark
+                      ? Colors.white.withOpacity(0.1)
+                      : scheme.primary.withOpacity(0.1))
+                  : Colors.transparent)),
       width: 1.5,
     );
 
@@ -201,7 +220,9 @@ class _FolderTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
-        onTap: onTap,
+        onTap: widget.onTap,
+        onFocusChange: (focused) => setState(() => _isFocused = focused),
+        onHover: (hovered) => setState(() => _isHovered = hovered),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -213,7 +234,7 @@ class _FolderTile extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                selected ? Icons.folder_open_rounded : Icons.folder_rounded,
+                widget.selected ? Icons.folder_open_rounded : Icons.folder_rounded,
                 color: iconColor,
                 size: 22,
               ),
@@ -224,10 +245,10 @@ class _FolderTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      label,
+                      widget.label,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontWeight: selected
+                        fontWeight: widget.selected
                             ? FontWeight.bold
                             : FontWeight.normal,
                         color: nameColor,
@@ -236,13 +257,13 @@ class _FolderTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '프롬프트 $count개',
+                      '프롬프트 ${widget.count}개',
                       style: TextStyle(color: countColor, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              if (trailing != null)
+              if (widget.trailing != null)
                 Theme(
                   data: Theme.of(context).copyWith(
                     iconButtonTheme: IconButtonThemeData(
@@ -253,7 +274,7 @@ class _FolderTile extends StatelessWidget {
                       ),
                     ),
                   ),
-                  child: trailing!,
+                  child: widget.trailing!,
                 ),
             ],
           ),
@@ -469,7 +490,7 @@ class _FolderQuickChip extends StatelessWidget {
   }
 }
 
-class PromptCard extends StatelessWidget {
+class PromptCard extends StatefulWidget {
   const PromptCard({
     super.key,
     required this.prompt,
@@ -491,12 +512,27 @@ class PromptCard extends StatelessWidget {
   final VoidCallback onDuplicate;
   final VoidCallback onTogglePin;
 
+  @override
+  State<PromptCard> createState() => _PromptCardState();
+}
+
+class _PromptCardState extends State<PromptCard> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   bool _isLocked() {
-    final titleLower = prompt.title.toLowerCase();
+    final titleLower = widget.prompt.title.toLowerCase();
     if (titleLower.contains('잠금') || titleLower.contains('잠긴')) {
       return true;
     }
-    if (prompt.tags.any((tag) {
+    if (widget.prompt.tags.any((tag) {
       final tagLower = tag.toLowerCase();
       return tagLower == '잠금' || tagLower == 'lock';
     })) {
@@ -531,7 +567,7 @@ class PromptCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Text(
-                  prompt.title,
+                  widget.prompt.title,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
@@ -548,23 +584,23 @@ class PromptCard extends StatelessWidget {
                 title: Text('복사', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
-                  onCopy();
+                  widget.onCopy();
                 },
               ),
               ListTile(
                 leading: Icon(
-                  prompt.isPinned
+                  widget.prompt.isPinned
                       ? Icons.push_pin_rounded
                       : Icons.push_pin_outlined,
                   color: isDark ? Colors.white70 : Colors.black87,
                 ),
                 title: Text(
-                  prompt.isPinned ? '고정 해제' : '상단 고정',
+                  widget.prompt.isPinned ? '고정 해제' : '상단 고정',
                   style: textStyle,
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  onTogglePin();
+                  widget.onTogglePin();
                 },
               ),
               ListTile(
@@ -575,7 +611,7 @@ class PromptCard extends StatelessWidget {
                 title: Text('편집', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
-                  onEdit();
+                  widget.onEdit();
                 },
               ),
               ListTile(
@@ -586,7 +622,7 @@ class PromptCard extends StatelessWidget {
                 title: Text('복제', style: textStyle),
                 onTap: () {
                   Navigator.pop(ctx);
-                  onDuplicate();
+                  widget.onDuplicate();
                 },
               ),
               ListTile(
@@ -600,7 +636,7 @@ class PromptCard extends StatelessWidget {
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
-                  onDelete();
+                  widget.onDelete();
                 },
               ),
             ],
@@ -626,101 +662,162 @@ class PromptCard extends StatelessWidget {
 
     final dateStyle = TextStyle(fontSize: 12.0, color: dateColor);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onCopy,
-        onDoubleTap: onEdit,
-        onLongPress: () => _showActionSheet(context),
-        onSecondaryTapUp: (_) => _showActionSheet(context),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            AspectRatio(
-              aspectRatio: 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1C1C1E)
-                      : const Color(0xFFE5E5EA),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                padding: const EdgeInsets.all(16),
-                clipBehavior: Clip.antiAlias,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Padding(
-                        padding: prompt.isPinned
-                            ? const EdgeInsets.only(right: 20)
-                            : EdgeInsets.zero,
-                        child: isLocked
-                            ? Center(
-                                child: Icon(
-                                  Icons.lock_rounded,
-                                  size: 40,
-                                  color: isDark
-                                      ? Colors.white30
-                                      : Colors.black26,
-                                ),
-                              )
-                            : Align(
-                                alignment: Alignment.topLeft,
-                                child: Text.rich(
-                                  TextSpan(
-                                    children: prompt.segments
-                                        .map(
-                                          (segment) => TextSpan(
-                                            text: segment.text,
-                                            style: TextStyle(
-                                              color: Color(segment.colorValue),
-                                              height: 1.4,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                  maxLines: 6,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+    return Focus(
+      focusNode: _focusNode,
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.enter) {
+            widget.onEdit();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.space) {
+            widget.onCopy();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.delete) {
+            widget.onDelete();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.keyD &&
+                     HardwareKeyboard.instance.isControlPressed) {
+            widget.onDuplicate();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.keyP) {
+            widget.onTogglePin();
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.contextMenu ||
+                     (event.logicalKey == LogicalKeyboardKey.keyM &&
+                      HardwareKeyboard.instance.isShiftPressed)) {
+            _showActionSheet(context);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onCopy,
+          onDoubleTap: widget.onEdit,
+          onLongPress: () => _showActionSheet(context),
+          onSecondaryTapUp: (_) => _showActionSheet(context),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            transform: Matrix4.identity()
+              ..scale((_isHovered || _isFocused) ? 1.03 : 1.0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: (_isHovered || _isFocused)
+                  ? [
+                      BoxShadow(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      )
+                    ]
+                  : [],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.0,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOut,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF1C1C1E)
+                          : const Color(0xFFE5E5EA),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: _isFocused
+                            ? Theme.of(context).colorScheme.primary
+                            : (_isHovered
+                                ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                                : Colors.transparent),
+                        width: 2,
                       ),
                     ),
-                    if (prompt.isPinned)
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: Icon(
-                          Icons.push_pin_rounded,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary,
+                    padding: const EdgeInsets.all(16),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Padding(
+                            padding: widget.prompt.isPinned
+                                ? const EdgeInsets.only(right: 20)
+                                : EdgeInsets.zero,
+                            child: isLocked
+                                ? Center(
+                                    child: Icon(
+                                      Icons.lock_rounded,
+                                      size: 40,
+                                      color: isDark
+                                          ? Colors.white30
+                                          : Colors.black26,
+                                    ),
+                                  )
+                                : Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Text.rich(
+                                      TextSpan(
+                                        children: widget.prompt.segments
+                                            .map(
+                                              (segment) => TextSpan(
+                                                text: segment.text,
+                                                style: TextStyle(
+                                                  color: Color(segment.colorValue),
+                                                  height: 1.4,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                                      maxLines: 6,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                          ),
                         ),
-                      ),
-                  ],
+                        if (widget.prompt.isPinned)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: Icon(
+                              Icons.push_pin_rounded,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    widget.prompt.title,
+                    style: titleStyle,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatMonthDay(widget.prompt.updatedAt),
+                  style: dateStyle,
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                prompt.title,
-                style: titleStyle,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formatMonthDay(prompt.updatedAt),
-              style: dateStyle,
-              textAlign: TextAlign.center,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -965,19 +1062,13 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              ...AppPalette.values.map(
-                                (palette) => _ColorDot(
-                                  colorValue: palette.value,
-                                  isSelected: seg.colorValue == palette.value,
-                                  onTap: () {
-                                    triggerInteractionHaptic(widget.settings);
-                                    setState(
-                                      () => _segments[idx] = seg.copyWith(
-                                        colorValue: palette.value,
-                                      ),
-                                    );
-                                  },
-                                ),
+                              _ColorDot(
+                                colorValue: seg.colorValue,
+                                isSelected: true,
+                                onTap: () {
+                                  triggerInteractionHaptic(widget.settings);
+                                  _pickMoreColors(idx);
+                                },
                               ),
                               if (widget.favoriteColors.isNotEmpty) ...[
                                 Container(
@@ -1075,7 +1166,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   }
 }
 
-class _ColorDot extends StatelessWidget {
+class _ColorDot extends StatefulWidget {
   const _ColorDot({
     required this.colorValue,
     required this.isSelected,
@@ -1087,33 +1178,78 @@ class _ColorDot extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_ColorDot> createState() => _ColorDotState();
+}
+
+class _ColorDotState extends State<_ColorDot> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: Color(colorValue),
-          shape: BoxShape.circle,
-          border: isSelected
-              ? Border.all(
-                  color: Theme.of(context).colorScheme.onSurface,
-                  width: 2,
-                )
-              : Border.all(color: Colors.black12),
-          boxShadow: isSelected
-              ? [
+    final isSelected = widget.isSelected;
+    final dotColor = Color(widget.colorValue);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    return Focus(
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.only(right: 10),
+            width: 32,
+            height: 32,
+            transform: Matrix4.identity()..scale((_isHovered || _isFocused) ? 1.15 : 1.0),
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected
+                    ? Colors.white
+                    : (_isFocused || _isHovered
+                        ? primaryColor.withOpacity(0.8)
+                        : Colors.white.withOpacity(0.2)),
+                width: isSelected ? 3.0 : 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.25),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+                if (isSelected || _isHovered || _isFocused)
                   BoxShadow(
-                    color: Color(colorValue).withOpacity(0.4),
-                    blurRadius: 4,
+                    color: dotColor.withOpacity(0.5),
+                    blurRadius: 8,
+                    spreadRadius: 1.5,
                   ),
-                ]
-              : null,
-        ),
+              ],
+            ),
+            child: isSelected
+                ? Center(
+                    child: Icon(
+                      Icons.check,
+                      color: ThemeData.estimateBrightnessForColor(dotColor) == Brightness.light
+                          ? Colors.black87
+                          : Colors.white,
+                      size: 16,
+                    ),
+                  )
+                : null,
+          ),
         ),
       ),
     );
@@ -1145,6 +1281,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
   final TextEditingController _field1Controller = TextEditingController();
   final TextEditingController _field2Controller = TextEditingController();
   final TextEditingController _field3Controller = TextEditingController();
+
+  final FocusNode _spectrumFocusNode = FocusNode();
+  final FocusNode _sliderFocusNode = FocusNode();
 
   late double _hue; // 0.0 to 360.0
   late double _saturation; // 0.0 to 1.0
@@ -1197,6 +1336,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     _field2Controller.addListener(_onNumericFieldChanged);
     _field3Controller.addListener(_onNumericFieldChanged);
 
+    _spectrumFocusNode.addListener(() => setState(() {}));
+    _sliderFocusNode.addListener(() => setState(() {}));
+
     _updateTextControllers();
   }
 
@@ -1211,6 +1353,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     _field1Controller.dispose();
     _field2Controller.dispose();
     _field3Controller.dispose();
+
+    _spectrumFocusNode.dispose();
+    _sliderFocusNode.dispose();
     super.dispose();
   }
 
@@ -1346,6 +1491,67 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
     });
   }
 
+  KeyEventResult _handleSpectrumKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    final bool isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final double hueStep = isShiftPressed ? 15.0 : 5.0;
+    final double satStep = isShiftPressed ? 0.10 : 0.02;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      setState(() {
+        _hue = (_hue - hueStep).clamp(0.0, 360.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      setState(() {
+        _hue = (_hue + hueStep).clamp(0.0, 360.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _saturation = (_saturation + satStep).clamp(0.0, 1.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _saturation = (_saturation - satStep).clamp(0.0, 1.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  KeyEventResult _handleSliderKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    final bool isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final double valStep = isShiftPressed ? 0.10 : 0.02;
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      setState(() {
+        _value = (_value + valStep).clamp(0.0, 1.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      setState(() {
+        _value = (_value - valStep).clamp(0.0, 1.0);
+        _updateTextControllers();
+      });
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   void _addCurrentColorToCustom() {
     final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
     final colorVal = activeColor.value;
@@ -1378,449 +1584,506 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: const Color(0xFF202020),
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: 640,
-        height: 520,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title and Close Button
-            Row(
-              children: [
-                const Text(
-                  '색 편집',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white70),
-                  onPressed: () {
-                    triggerInteractionHaptic(widget.settings);
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Upper Section
-            Row(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): () {
+          triggerInteractionHaptic(widget.settings);
+          final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+          Navigator.pop(context, activeColor);
+        },
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          triggerInteractionHaptic(widget.settings);
+          Navigator.pop(context);
+        },
+      },
+      child: FocusScope(
+        autofocus: true,
+        child: Dialog(
+          backgroundColor: const Color(0xFF0F172A), // Slate-900 dark theme
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Colors.white12, width: 1.5),
+          ),
+          child: Container(
+            width: 660,
+            height: 530,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Spectrum Picker
-                Container(
-                  width: 240,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.black45),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final size = Size(constraints.maxWidth, constraints.maxHeight);
-                      return GestureDetector(
-                        onPanUpdate: (details) => _handleSpectrumDrag(details.localPosition, size),
-                        onPanDown: (details) => _handleSpectrumDrag(details.localPosition, size),
-                        child: CustomPaint(
-                          painter: const HueSaturationPainter(),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Positioned(
-                                left: (_hue / 360.0) * size.width - 8,
-                                top: (1.0 - _saturation) * size.height - 8,
-                                child: Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                // Title and Close Button
+                Row(
+                  children: [
+                    const Text(
+                      '색 편집',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white70),
+                      onPressed: () {
+                        triggerInteractionHaptic(widget.settings);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Upper Section
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Spectrum Picker
+                    Focus(
+                      focusNode: _spectrumFocusNode,
+                      onKeyEvent: (node, event) => _handleSpectrumKeyEvent(event),
+                      child: Container(
+                        width: 240,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _spectrumFocusNode.hasFocus
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.white12,
+                            width: _spectrumFocusNode.hasFocus ? 2.5 : 1.0,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-
-                // Solid Color Preview
-                Container(
-                  width: 40,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    color: HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor(),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.black45),
-                  ),
-                ),
-                const SizedBox(width: 16),
-
-                // Brightness Slider
-                Container(
-                  width: 16,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.black45),
-                  ),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final size = Size(constraints.maxWidth, constraints.maxHeight);
-                      return GestureDetector(
-                        onPanUpdate: (details) => _handleSliderDrag(details.localPosition, size),
-                        onPanDown: (details) => _handleSliderDrag(details.localPosition, size),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(3),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    HSVColor.fromAHSV(1.0, _hue, _saturation, 1.0).toColor(),
-                                    Colors.black,
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              left: size.width / 2 - 8,
-                              top: (1.0 - _value) * size.height - 8,
-                              child: Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.black54),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.3),
-                                      blurRadius: 2,
+                        clipBehavior: Clip.antiAlias,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final size = Size(constraints.maxWidth, constraints.maxHeight);
+                            return GestureDetector(
+                              onPanUpdate: (details) => _handleSpectrumDrag(details.localPosition, size),
+                              onPanDown: (details) => _handleSpectrumDrag(details.localPosition, size),
+                              child: CustomPaint(
+                                painter: const HueSaturationPainter(),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Positioned(
+                                      left: (_hue / 360.0) * size.width - 8,
+                                      top: (1.0 - _saturation) * size.height - 8,
+                                      child: Container(
+                                        width: 16,
+                                        height: 16,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: Colors.white, width: 2),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.3),
+                                              blurRadius: 2,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ],
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 24),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
 
-                // Input Fields Panel
-                Expanded(
-                  child: SizedBox(
-                    height: 220,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // HEX Input
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 36,
-                                child: TextField(
-                                  controller: _hexController,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                                  decoration: InputDecoration(
-                                    fillColor: const Color(0xFF2C2C2E),
-                                    filled: true,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: const BorderSide(color: Colors.white24),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: const BorderSide(color: Colors.white24),
+                    // Solid Color Preview
+                    Container(
+                      width: 48,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        color: HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor(),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white24, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.35),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          )
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+
+                    // Brightness Slider
+                    Focus(
+                      focusNode: _sliderFocusNode,
+                      onKeyEvent: (node, event) => _handleSliderKeyEvent(event),
+                      child: Container(
+                        width: 18,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _sliderFocusNode.hasFocus
+                                ? Theme.of(context).colorScheme.primary
+                                : Colors.white12,
+                            width: _sliderFocusNode.hasFocus ? 2.5 : 1.0,
+                          ),
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final size = Size(constraints.maxWidth, constraints.maxHeight);
+                            return GestureDetector(
+                              onPanUpdate: (details) => _handleSliderDrag(details.localPosition, size),
+                              onPanDown: (details) => _handleSliderDrag(details.localPosition, size),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(3),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          HSVColor.fromAHSV(1.0, _hue, _saturation, 1.0).toColor(),
+                                          Colors.black,
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const SizedBox(width: 40),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Format Dropdown
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SizedBox(
-                                height: 36,
-                                child: DropdownButtonFormField<String>(
-                                  value: _colorFormat,
-                                  dropdownColor: const Color(0xFF2C2C2E),
-                                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                                  decoration: InputDecoration(
-                                    fillColor: const Color(0xFF2C2C2E),
-                                    filled: true,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: const BorderSide(color: Colors.white24),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(6),
-                                      borderSide: const BorderSide(color: Colors.white24),
+                                  Positioned(
+                                    left: size.width / 2 - 8,
+                                    top: (1.0 - _value) * size.height - 8,
+                                    child: Container(
+                                      width: 16,
+                                      height: 16,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.black54),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.3),
+                                            blurRadius: 2,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                  items: const [
-                                    DropdownMenuItem(value: 'RGB', child: Text('RGB', style: TextStyle(color: Colors.white))),
-                                    DropdownMenuItem(value: 'HSV', child: Text('HSV', style: TextStyle(color: Colors.white))),
-                                    DropdownMenuItem(value: 'HSL', child: Text('HSL', style: TextStyle(color: Colors.white))),
-                                  ],
-                                  onChanged: (v) {
-                                    if (v != null) {
-                                      setState(() {
-                                        _colorFormat = v;
-                                        _updateTextControllers();
-                                      });
-                                    }
-                                  },
-                                ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            const SizedBox(width: 40),
-                          ],
+                            );
+                          },
                         ),
-                        const SizedBox(height: 8),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
 
-                        // Numeric Inputs
-                        ...List.generate(3, (idx) {
-                          final label = _numericLabels[idx];
-                          final controller = idx == 0
-                              ? _field1Controller
-                              : (idx == 1 ? _field2Controller : _field3Controller);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
+                    // Input Fields Panel
+                    Expanded(
+                      child: SizedBox(
+                        height: 220,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // HEX Input
+                            Row(
                               children: [
                                 Expanded(
                                   child: SizedBox(
-                                    height: 36,
+                                    height: 38,
                                     child: TextField(
-                                      controller: controller,
-                                      keyboardType: TextInputType.number,
-                                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                                      controller: _hexController,
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                                       decoration: InputDecoration(
-                                        fillColor: const Color(0xFF2C2C2E),
+                                        fillColor: const Color(0xFF1E293B),
                                         filled: true,
-                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        prefixIcon: const Icon(Icons.tag_rounded, color: Colors.white54, size: 14),
                                         border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(6),
-                                          borderSide: const BorderSide(color: Colors.white24),
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: Colors.white12),
                                         ),
                                         enabledBorder: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(6),
-                                          borderSide: const BorderSide(color: Colors.white24),
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: Colors.white12),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                SizedBox(
-                                  width: 40,
-                                  child: Text(
-                                    label,
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                                   ),
                                 ),
                               ],
                             ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                            const SizedBox(height: 10),
 
-            // Lower Section: Grids
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Basic Colors Grid
-                  Expanded(
-                    flex: 12,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '기본 색',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: GridView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 12,
-                              mainAxisSpacing: 2,
-                              crossAxisSpacing: 2,
-                            ),
-                            itemCount: _basicColors.length,
-                            itemBuilder: (context, index) {
-                              final color = _basicColors[index];
-                              final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
-                              final isSelected = activeColor.value == color.value;
-                              return BasicColorCircle(
-                                color: color,
-                                isSelected: isSelected,
-                                onTap: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  final hsv = HSVColor.fromColor(color);
-                                  setState(() {
-                                    _hue = hsv.hue;
-                                    _saturation = hsv.saturation;
-                                    _value = hsv.value;
-                                    _updateTextControllers();
-                                  });
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 24),
-
-                  // Custom Colors Grid
-                  Expanded(
-                    flex: 6,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              '사용자 지정 색',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
-                            const Spacer(),
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(4),
-                                onTap: _addCurrentColorToCustom,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.white30),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Icon(
-                                    Icons.add,
-                                    color: Colors.white,
-                                    size: 14,
+                            // Format Dropdown
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 38,
+                                    child: DropdownButtonFormField<String>(
+                                      value: _colorFormat,
+                                      dropdownColor: const Color(0xFF1E293B),
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                      decoration: InputDecoration(
+                                        fillColor: const Color(0xFF1E293B),
+                                        filled: true,
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: Colors.white12),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: const BorderSide(color: Colors.white12),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                                        ),
+                                      ),
+                                      items: const [
+                                        DropdownMenuItem(value: 'RGB', child: Text('RGB', style: TextStyle(color: Colors.white))),
+                                        DropdownMenuItem(value: 'HSV', child: Text('HSV', style: TextStyle(color: Colors.white))),
+                                        DropdownMenuItem(value: 'HSL', child: Text('HSL', style: TextStyle(color: Colors.white))),
+                                      ],
+                                      onChanged: (v) {
+                                        if (v != null) {
+                                          setState(() {
+                                            _colorFormat = v;
+                                            _updateTextControllers();
+                                          });
+                                        }
+                                      },
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Numeric Inputs
+                            ...List.generate(3, (idx) {
+                              final label = _numericLabels[idx];
+                              final controller = idx == 0
+                                  ? _field1Controller
+                                  : (idx == 1 ? _field2Controller : _field3Controller);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: SizedBox(
+                                        height: 38,
+                                        child: TextField(
+                                          controller: controller,
+                                          keyboardType: TextInputType.number,
+                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                          decoration: InputDecoration(
+                                            fillColor: const Color(0xFF1E293B),
+                                            filled: true,
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                            prefixIcon: Padding(
+                                              padding: const EdgeInsets.only(left: 8.0, right: 4.0),
+                                              child: Center(
+                                                widthFactor: 1.0,
+                                                child: Text(
+                                                  label,
+                                                  style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+                                                ),
+                                              ),
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: Colors.white12),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: const BorderSide(color: Colors.white12),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Lower Section: Grids and Comparison
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Basic Colors Grid
+                      Expanded(
+                        flex: 12,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '기본 색',
+                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 12,
+                                  mainAxisSpacing: 2,
+                                  crossAxisSpacing: 2,
+                                ),
+                                itemCount: _basicColors.length,
+                                itemBuilder: (context, index) {
+                                  final color = _basicColors[index];
+                                  final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+                                  final isSelected = activeColor.value == color.value;
+                                  return BasicColorCircle(
+                                    color: color,
+                                    isSelected: isSelected,
+                                    onTap: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      final hsv = HSVColor.fromColor(color);
+                                      setState(() {
+                                        _hue = hsv.hue;
+                                        _saturation = hsv.saturation;
+                                        _value = hsv.value;
+                                        _updateTextControllers();
+                                      });
+                                    },
+                                  );
+                                },
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: GridView.builder(
-                            physics: const NeverScrollableScrollPhysics(),
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 6,
-                              mainAxisSpacing: 2,
-                              crossAxisSpacing: 2,
-                            ),
-                            itemCount: 24,
-                            itemBuilder: (context, index) {
-                              final isSelected = index == _selectedCustomSlotIndex;
-                              final isEmpty = index >= _favoriteColors.length;
-                              final color = isEmpty ? Colors.transparent : Color(_favoriteColors[index]);
-                              return CustomColorCircle(
-                                color: color,
-                                isSelected: isSelected,
-                                isEmpty: isEmpty,
-                                onTap: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  setState(() {
-                                    _selectedCustomSlotIndex = index;
-                                    if (!isEmpty) {
-                                      final hsv = HSVColor.fromColor(color);
-                                      _hue = hsv.hue;
-                                      _saturation = hsv.saturation;
-                                      _value = hsv.value;
-                                      _updateTextControllers();
-                                    }
-                                  });
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                      ),
+                      const SizedBox(width: 24),
 
-            // Bottom Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    triggerInteractionHaptic(widget.settings);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('취소', style: TextStyle(color: Colors.white70)),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
+                      // Custom Colors Grid
+                      Expanded(
+                        flex: 6,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  '사용자 지정 색',
+                                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: _addCurrentColorToCustom,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.white24),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Icon(
+                                        Icons.add,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Expanded(
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 6,
+                                  mainAxisSpacing: 2,
+                                  crossAxisSpacing: 2,
+                                ),
+                                itemCount: 24,
+                                itemBuilder: (context, index) {
+                                  final isSelected = index == _selectedCustomSlotIndex;
+                                  final isEmpty = index >= _favoriteColors.length;
+                                  final color = isEmpty ? Colors.transparent : Color(_favoriteColors[index]);
+                                  return CustomColorCircle(
+                                    color: color,
+                                    isSelected: isSelected,
+                                    isEmpty: isEmpty,
+                                    onTap: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      setState(() {
+                                        _selectedCustomSlotIndex = index;
+                                        if (!isEmpty) {
+                                          final hsv = HSVColor.fromColor(color);
+                                          _hue = hsv.hue;
+                                          _saturation = hsv.saturation;
+                                          _value = hsv.value;
+                                          _updateTextControllers();
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  onPressed: () {
-                    triggerInteractionHaptic(widget.settings);
-                    final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
-                    Navigator.pop(context, activeColor);
-                  },
-                  child: const Text('확인'),
+                ),
+
+                // Bottom Action Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        triggerInteractionHaptic(widget.settings);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('취소', style: TextStyle(color: Colors.white60, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      ),
+                      onPressed: () {
+                        triggerInteractionHaptic(widget.settings);
+                        final activeColor = HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor();
+                        Navigator.pop(context, activeColor);
+                      },
+                      child: const Text('확인', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1903,7 +2166,7 @@ class DashedCirclePainter extends CustomPainter {
   bool shouldRepaint(covariant DashedCirclePainter oldDelegate) => oldDelegate.color != color;
 }
 
-class CustomColorCircle extends StatelessWidget {
+class CustomColorCircle extends StatefulWidget {
   const CustomColorCircle({
     super.key,
     required this.color,
@@ -1918,60 +2181,103 @@ class CustomColorCircle extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<CustomColorCircle> createState() => _CustomColorCircleState();
+}
+
+class _CustomColorCircleState extends State<CustomColorCircle> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  @override
   Widget build(BuildContext context) {
     Widget child;
-    if (isEmpty) {
+    if (widget.isEmpty) {
       child = CustomPaint(
-        size: const Size(16, 16),
+        size: const Size(18, 18),
         painter: DashedCirclePainter(color: Colors.white30),
       );
     } else {
+      final bool isWhiteOrVeryBright = widget.color.red > 220 && widget.color.green > 220 && widget.color.blue > 220;
       child = Container(
-        width: 16,
-        height: 16,
+        width: 18,
+        height: 18,
         decoration: BoxDecoration(
-          color: color,
+          color: widget.color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: color == Colors.white ? Colors.black38 : Colors.white24,
+            color: isWhiteOrVeryBright ? Colors.black38 : Colors.white24,
             width: 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            )
+          ],
         ),
       );
     }
 
-    if (isSelected) {
-      return GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              CustomPaint(
-                size: const Size(22, 22),
-                painter: const DashedCirclePainter(color: Colors.white70),
+    final display = widget.isSelected
+        ? SizedBox(
+            width: 26,
+            height: 26,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(24, 24),
+                  painter: const DashedCirclePainter(color: Colors.white70),
+                ),
+                child,
+              ],
+            ),
+          )
+        : SizedBox(
+            width: 26,
+            height: 26,
+            child: Center(child: child),
+          );
+
+    return Focus(
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            transform: Matrix4.identity()..scale((_isHovered || _isFocused) ? 1.25 : 1.0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _isFocused
+                    ? Theme.of(context).colorScheme.primary
+                    : ((_isHovered && !widget.isEmpty)
+                        ? Colors.white54
+                        : Colors.transparent),
+                width: 2,
               ),
-              child,
-            ],
+            ),
+            child: display,
           ),
         ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 24,
-        height: 24,
-        child: Center(child: child),
       ),
     );
   }
 }
 
-class BasicColorCircle extends StatelessWidget {
+class BasicColorCircle extends StatefulWidget {
   const BasicColorCircle({
     super.key,
     required this.color,
@@ -1984,21 +2290,61 @@ class BasicColorCircle extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<BasicColorCircle> createState() => _BasicColorCircleState();
+}
+
+class _BasicColorCircleState extends State<BasicColorCircle> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.all(3),
-        width: 16,
-        height: 16,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected
-                ? Colors.white
-                : (color == Colors.white ? Colors.black38 : Colors.white12),
-            width: isSelected ? 2 : 1,
+    final bool isWhiteOrVeryBright = widget.color.red > 220 && widget.color.green > 220 && widget.color.blue > 220;
+
+    return Focus(
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            margin: const EdgeInsets.all(2.5),
+            transform: Matrix4.identity()..scale((_isHovered || _isFocused) ? 1.25 : 1.0),
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: widget.isSelected
+                    ? Colors.white
+                    : (_isFocused || _isHovered
+                        ? Theme.of(context).colorScheme.primary
+                        : (isWhiteOrVeryBright ? Colors.black38 : Colors.white24)),
+                width: widget.isSelected ? 2.5 : (_isFocused || _isHovered ? 2.0 : 1.0),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.35),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                ),
+                if (widget.isSelected || _isHovered || _isFocused)
+                  BoxShadow(
+                    color: widget.color.withOpacity(0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1.0,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2017,6 +2363,7 @@ class SettingsSheet extends StatelessWidget {
     required this.onBackup,
     required this.onRestore,
     required this.onToggleHaptic,
+    required this.onToggleFolderNavigation,
   });
 
   final AppSettings settings;
@@ -2027,6 +2374,7 @@ class SettingsSheet extends StatelessWidget {
   final VoidCallback onBackup;
   final VoidCallback onRestore;
   final ValueChanged<bool> onToggleHaptic;
+  final ValueChanged<bool> onToggleFolderNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -2044,6 +2392,11 @@ class SettingsSheet extends StatelessWidget {
             title: const Text('터치 진동'),
             value: settings.hapticEnabled,
             onChanged: onToggleHaptic,
+          ),
+          SwitchListTile(
+            title: const Text('빠른 폴더 이동 표시'),
+            value: settings.showFolderNavigation,
+            onChanged: onToggleFolderNavigation,
           ),
           SwitchListTile(
             title: const Text('앱 잠금'),
@@ -2076,7 +2429,7 @@ class SettingsSheet extends StatelessWidget {
   }
 }
 
-class FolderCard extends StatelessWidget {
+class FolderCard extends StatefulWidget {
   const FolderCard({
     super.key,
     required this.name,
@@ -2091,6 +2444,21 @@ class FolderCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<FolderCard> createState() => _FolderCardState();
+}
+
+class _FolderCardState extends State<FolderCard> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -2099,7 +2467,7 @@ class FolderCard extends StatelessWidget {
     final coverColor = isDark
         ? const Color(0xFF2C2C2E)
         : const Color(0xFFE5E5EA);
-    final borderColor = isSelected
+    final borderColor = widget.isSelected
         ? scheme.primary
         : (isDark
               ? Colors.white.withValues(alpha: 0.1)
@@ -2107,74 +2475,98 @@ class FolderCard extends StatelessWidget {
     final labelColor = isDark ? Colors.white : Colors.black;
     final countColor = isDark ? Colors.white60 : Colors.black54;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 110,
-        height: 90,
-        margin: const EdgeInsets.only(right: 12),
-        child: Stack(
-          children: [
-            // Back paper tab sticking out
-            Positioned(
-              top: 0,
-              left: 10,
-              right: 10,
-              child: Container(
-                height: 30,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.9)
-                      : Colors.grey[300],
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(6),
-                    topRight: Radius.circular(6),
+    return Focus(
+      focusNode: _focusNode,
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+          widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            transform: Matrix4.identity()
+              ..scale((_isHovered || _isFocused) ? 1.04 : 1.0),
+            width: 110,
+            height: 90,
+            margin: const EdgeInsets.only(right: 12),
+            child: Stack(
+              children: [
+                // Back paper tab sticking out
+                Positioned(
+                  top: 0,
+                  left: 10,
+                  right: 10,
+                  child: Container(
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : Colors.grey[300],
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(6),
+                        topRight: Radius.circular(6),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            // Front cover
-            Positioned.fill(
-              top: 8,
-              child: CustomPaint(
-                painter: FolderFrontPainter(
-                  color: coverColor,
-                  borderColor: borderColor,
-                  borderWidth: isSelected ? 2.0 : 1.0,
+                // Front cover
+                Positioned.fill(
+                  top: 8,
+                  child: CustomPaint(
+                    painter: FolderFrontPainter(
+                      color: coverColor,
+                      borderColor: _isFocused
+                          ? scheme.primary
+                          : (_isHovered
+                              ? scheme.primary.withOpacity(0.6)
+                              : borderColor),
+                      borderWidth: (_isFocused || widget.isSelected) ? 2.5 : (_isHovered ? 1.5 : 1.0),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            // Prompt count top-left of front cover
-            Positioned(
-              top: 30, // folder body starts at top 8 + painter offset 20 = 28
-              left: 12,
-              child: Text(
-                promptCount.toString(),
-                style: TextStyle(
-                  color: countColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+                // Prompt count top-left of front cover
+                Positioned(
+                  top: 30, // folder body starts at top 8 + painter offset 20 = 28
+                  left: 12,
+                  child: Text(
+                    widget.promptCount.toString(),
+                    style: TextStyle(
+                      color: countColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            // Folder name bottom-left of front cover
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: Text(
-                name,
-                style: TextStyle(
-                  color: labelColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
+                // Folder name bottom-left of front cover
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 10,
+                  child: Text(
+                    widget.name,
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -2233,5 +2625,170 @@ class FolderFrontPainter extends CustomPainter {
     return oldDelegate.color != color ||
         oldDelegate.borderColor != borderColor ||
         oldDelegate.borderWidth != borderWidth;
+  }
+}
+
+class PinPad extends StatelessWidget {
+  const PinPad({
+    super.key,
+    required this.controller,
+    required this.enabled,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final bool enabled;
+  final VoidCallback onSubmitted;
+
+  void _onKeyPress(String val) {
+    if (!enabled) return;
+    if (controller.text.length < 4) {
+      controller.text += val;
+    }
+  }
+
+  void _onBackspace() {
+    if (!enabled) return;
+    if (controller.text.isNotEmpty) {
+      controller.text = controller.text.substring(0, controller.text.length - 1);
+    }
+  }
+
+  void _onClear() {
+    if (!enabled) return;
+    controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: GridView.count(
+        crossAxisCount: 3,
+        shrinkWrap: true,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (var i = 1; i <= 9; i++)
+            _PinButton(
+              label: i.toString(),
+              onTap: () => _onKeyPress(i.toString()),
+              enabled: enabled,
+            ),
+          _PinButton(
+            label: 'C',
+            onTap: _onClear,
+            enabled: enabled,
+            isSecondary: true,
+          ),
+          _PinButton(
+            label: '0',
+            onTap: () => _onKeyPress('0'),
+            enabled: enabled,
+            isSecondary: false,
+          ),
+          _PinButton(
+            icon: Icons.backspace_outlined,
+            onTap: _onBackspace,
+            enabled: enabled,
+            isSecondary: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PinButton extends StatefulWidget {
+  const _PinButton({
+    this.label,
+    this.icon,
+    required this.onTap,
+    required this.enabled,
+    this.isSecondary = false,
+  });
+
+  final String? label;
+  final IconData? icon;
+  final VoidCallback onTap;
+  final bool enabled;
+  final bool isSecondary;
+
+  @override
+  State<_PinButton> createState() => _PinButtonState();
+}
+
+class _PinButtonState extends State<_PinButton> {
+  bool _isHovered = false;
+  bool _isFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
+    Color bgColor;
+    if (widget.isSecondary) {
+      bgColor = Colors.transparent;
+    } else {
+      bgColor = isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA);
+    }
+
+    Color fgColor = isDark ? Colors.white : Colors.black;
+    if (widget.isSecondary) {
+      fgColor = isDark ? Colors.white60 : Colors.black54;
+    }
+
+    return Focus(
+      onFocusChange: (focused) => setState(() => _isFocused = focused),
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+          if (widget.enabled) widget.onTap();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        cursor: widget.enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        child: GestureDetector(
+          onTap: widget.enabled ? widget.onTap : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            transform: Matrix4.identity()..scale((_isHovered || _isFocused) && widget.enabled ? 1.08 : 1.0),
+            decoration: BoxDecoration(
+              color: (_isHovered || _isFocused) && widget.enabled
+                  ? (widget.isSecondary
+                      ? (isDark ? Colors.white10 : Colors.black.withOpacity(0.05))
+                      : scheme.primary.withOpacity(0.15))
+                  : bgColor,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: (_isFocused && widget.enabled)
+                    ? scheme.primary
+                    : ((_isHovered && widget.enabled)
+                        ? scheme.primary.withOpacity(0.5)
+                        : Colors.transparent),
+                width: 2,
+              ),
+            ),
+            child: Center(
+              child: widget.icon != null
+                  ? Icon(widget.icon, color: fgColor, size: 20)
+                  : Text(
+                      widget.label!,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: fgColor,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

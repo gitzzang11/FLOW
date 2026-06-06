@@ -187,6 +187,7 @@ class AppSettings {
     this.promptViewMode = PromptViewMode.grid,
     this.customPromptOrder = const [],
     this.hapticEnabled = true,
+    this.showFolderNavigation = true,
   });
 
   final bool darkMode;
@@ -197,6 +198,7 @@ class AppSettings {
   final PromptViewMode promptViewMode;
   final List<String> customPromptOrder;
   final bool hapticEnabled;
+  final bool showFolderNavigation;
 
   AppSettings copyWith({
     bool? darkMode,
@@ -207,6 +209,7 @@ class AppSettings {
     PromptViewMode? promptViewMode,
     List<String>? customPromptOrder,
     bool? hapticEnabled,
+    bool? showFolderNavigation,
   }) {
     return AppSettings(
       darkMode: darkMode ?? this.darkMode,
@@ -217,6 +220,7 @@ class AppSettings {
       promptViewMode: promptViewMode ?? this.promptViewMode,
       customPromptOrder: customPromptOrder ?? this.customPromptOrder,
       hapticEnabled: hapticEnabled ?? this.hapticEnabled,
+      showFolderNavigation: showFolderNavigation ?? this.showFolderNavigation,
     );
   }
 
@@ -235,6 +239,7 @@ class AppSettings {
     customPromptOrder: (json['customPromptOrder'] as List<dynamic>? ?? [])
         .cast<String>(),
     hapticEnabled: json['hapticEnabled'] as bool? ?? true,
+    showFolderNavigation: json['showFolderNavigation'] as bool? ?? true,
   );
 
   Map<String, dynamic> toJson() => {
@@ -246,6 +251,7 @@ class AppSettings {
     'promptViewMode': promptViewMode.storageValue,
     'customPromptOrder': customPromptOrder,
     'hapticEnabled': hapticEnabled,
+    'showFolderNavigation': showFolderNavigation,
   };
 }
 

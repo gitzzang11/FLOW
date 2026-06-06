@@ -401,6 +401,12 @@ class _FlowShellState extends State<FlowShell> {
                 ),
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
+              const SizedBox(height: 20),
+              PinPad(
+                controller: controller,
+                enabled: true,
+                onSubmitted: () {},
+              ),
             ],
           ),
         ),
@@ -661,6 +667,14 @@ class _FlowShellState extends State<FlowShell> {
           );
           widget.onStoreChanged();
         },
+        onToggleFolderNavigation: (v) {
+          triggerInteractionHaptic(widget.store.settings);
+          widget.store.settings = widget.store.settings.copyWith(
+            showFolderNavigation: v,
+          );
+          widget.onStoreChanged();
+          setState(() {});
+        },
       ),
     );
   }
@@ -919,7 +933,8 @@ class _FlowShellState extends State<FlowShell> {
                   return CustomScrollView(
                     slivers: [
                       // Horizontal folders list
-                      SliverToBoxAdapter(child: _buildFoldersHorizontalList()),
+                      if (widget.store.settings.showFolderNavigation)
+                        SliverToBoxAdapter(child: _buildFoldersHorizontalList()),
 
                       // Sorting controls (layout toggle removed)
                       SliverToBoxAdapter(
@@ -1384,6 +1399,14 @@ class _LockScreenState extends State<LockScreen>
                           onSubmitted: (_) => _check(),
                         ),
                         const SizedBox(height: 24),
+                        if (!isLockedOut && !_loadingState) ...[
+                          PinPad(
+                            controller: _pinController,
+                            enabled: !_isUnlocking,
+                            onSubmitted: _check,
+                          ),
+                          const SizedBox(height: 24),
+                        ],
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
