@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -741,61 +743,175 @@ class _PromptCardState extends State<PromptCard> {
                         width: 2,
                       ),
                     ),
-                    padding: const EdgeInsets.all(16),
+                    padding: widget.prompt.imagePaths.isEmpty
+                        ? const EdgeInsets.all(16)
+                        : EdgeInsets.zero,
                     clipBehavior: Clip.antiAlias,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Padding(
-                            padding: widget.prompt.isPinned
-                                ? const EdgeInsets.only(right: 20)
-                                : EdgeInsets.zero,
-                            child: isLocked
-                                ? Center(
-                                    child: Icon(
-                                      Icons.lock_rounded,
-                                      size: 40,
-                                      color: isDark
-                                          ? Colors.white30
-                                          : Colors.black26,
+                    child: widget.prompt.imagePaths.isEmpty
+                        ? Stack(
+                            children: [
+                              Positioned.fill(
+                                child: Padding(
+                                  padding: widget.prompt.isPinned
+                                      ? const EdgeInsets.only(right: 20)
+                                      : EdgeInsets.zero,
+                                  child: isLocked
+                                      ? Center(
+                                          child: Icon(
+                                            Icons.lock_rounded,
+                                            size: 40,
+                                            color: isDark
+                                                ? Colors.white30
+                                                : Colors.black26,
+                                          ),
+                                        )
+                                      : Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Text.rich(
+                                            TextSpan(
+                                              children: widget.prompt.segments
+                                                  .map(
+                                                    (segment) => TextSpan(
+                                                      text: segment.text,
+                                                      style: TextStyle(
+                                                        color: Color(segment.colorValue),
+                                                        height: 1.4,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                            ),
+                                            maxLines: 6,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                              if (widget.prompt.isPinned)
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: Icon(
+                                    Icons.push_pin_rounded,
+                                    size: 16,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: Image.file(
+                                        File(widget.prompt.imagePaths.first),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: isDark ? Colors.white12 : Colors.black12,
+                                            child: const Center(
+                                              child: Icon(Icons.broken_image_outlined, size: 24),
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  )
-                                : Align(
-                                    alignment: Alignment.topLeft,
-                                    child: Text.rich(
-                                      TextSpan(
-                                        children: widget.prompt.segments
-                                            .map(
-                                              (segment) => TextSpan(
-                                                text: segment.text,
-                                                style: TextStyle(
-                                                  color: Color(segment.colorValue),
-                                                  height: 1.4,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
+                                    if (widget.prompt.imagePaths.length > 1)
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.65),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.image, color: Colors.white, size: 10),
+                                              const SizedBox(width: 3),
+                                              Text(
+                                                '${widget.prompt.imagePaths.length}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                            )
-                                            .toList(),
+                                            ],
+                                          ),
+                                        ),
                                       ),
-                                      maxLines: 6,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
+                                    if (widget.prompt.isPinned)
+                                      Positioned(
+                                        top: 8,
+                                        left: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.5),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.push_pin_rounded,
+                                            size: 12,
+                                            color: Theme.of(context).colorScheme.primary,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Container(
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.02)
+                                      : Colors.black.withOpacity(0.01),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  child: isLocked
+                                      ? Center(
+                                          child: Icon(
+                                            Icons.lock_rounded,
+                                            size: 20,
+                                            color: isDark
+                                                ? Colors.white30
+                                                : Colors.black26,
+                                          ),
+                                        )
+                                      : Align(
+                                          alignment: Alignment.topLeft,
+                                          child: Text.rich(
+                                            TextSpan(
+                                              children: widget.prompt.segments
+                                                  .map(
+                                                    (segment) => TextSpan(
+                                                      text: segment.text,
+                                                      style: TextStyle(
+                                                        color: Color(segment.colorValue),
+                                                        height: 1.3,
+                                                        fontSize: 11,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                            ),
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        if (widget.prompt.isPinned)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Icon(
-                              Icons.push_pin_rounded,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                      ],
-                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -885,6 +1001,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   late String _selectedFolderId;
   late int _titleColorValue;
   late List<PromptSegment> _segments;
+  late List<String> _imagePaths;
 
   final List<Color> _presetColors = [
     const Color(0xFF111827),
@@ -925,6 +1042,48 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
     _segments =
         widget.prompt?.segments.map((s) => s.copyWith()).toList() ??
         [PromptSegment(text: '', colorValue: AppPalette.ink.value)];
+    _imagePaths = List<String>.from(widget.prompt?.imagePaths ?? []);
+  }
+
+  Future<void> _pickImages() async {
+    triggerInteractionHaptic(widget.settings);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final appDataDir = Platform.environment['APPDATA'];
+        final imagesDir = Directory('$appDataDir/Flow/images');
+        if (!imagesDir.existsSync()) {
+          imagesDir.createSync(recursive: true);
+        }
+
+        final List<String> copiedPaths = [];
+        for (final file in result.files) {
+          if (file.path != null) {
+            final originalFile = File(file.path!);
+            final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+            final targetFile = File('${imagesDir.path}/$fileName');
+            await originalFile.copy(targetFile.path);
+            copiedPaths.add(targetFile.path);
+          }
+        }
+
+        setState(() {
+          _imagePaths.addAll(copiedPaths);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking images: $e');
+    }
+  }
+
+  void _removeImage(int index) {
+    triggerInteractionHaptic(widget.settings);
+    setState(() {
+      _imagePaths.removeAt(index);
+    });
   }
 
   void _save() {
@@ -950,6 +1109,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
         createdAt: widget.prompt?.createdAt ?? now,
         updatedAt: now,
         segments: _segments,
+        imagePaths: _imagePaths,
       ),
     );
   }
@@ -1022,6 +1182,107 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
                 controller: _tagsController,
                 decoration: const InputDecoration(labelText: '태그 (쉼표로 구분)'),
               ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Text(
+                    '이미지 첨부',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: _pickImages,
+                    icon: const Icon(Icons.add_photo_alternate_outlined),
+                    tooltip: '이미지 추가',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_imagePaths.isNotEmpty)
+                SizedBox(
+                  height: 90,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _imagePaths.length,
+                    itemBuilder: (context, idx) {
+                      final path = _imagePaths[idx];
+                      return Container(
+                        margin: const EdgeInsets.only(right: 12),
+                        width: 90,
+                        height: 90,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Theme.of(context).brightness == Brightness.dark
+                                        ? Colors.white12
+                                        : Colors.black12,
+                                    width: 1,
+                                  ),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Image.file(
+                                  File(path),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Center(child: Icon(Icons.broken_image, size: 30));
+                                  },
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () => _removeImage(idx),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.03)
+                        : Colors.black.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white12
+                          : Colors.black12,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '첨부된 이미지가 없습니다.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                      ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 32),
               Row(
                 children: [
@@ -1584,6 +1845,13 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final onSurface = theme.colorScheme.onSurface;
+    final dialogBg = theme.dialogTheme.backgroundColor ?? theme.colorScheme.surface;
+    final fieldBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9);
+    final borderColor = isDark ? Colors.white12 : Colors.black12;
+
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.enter): () {
@@ -1599,11 +1867,11 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
       child: FocusScope(
         autofocus: true,
         child: Dialog(
-          backgroundColor: const Color(0xFF0F172A), // Slate-900 dark theme
+          backgroundColor: dialogBg,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Colors.white12, width: 1.5),
+            side: BorderSide(color: borderColor, width: 1.5),
           ),
           child: Container(
             width: 660,
@@ -1615,17 +1883,17 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                 // Title and Close Button
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       '색 편집',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white70),
+                      icon: Icon(Icons.close, color: onSurface.withOpacity(0.7)),
                       onPressed: () {
                         triggerInteractionHaptic(widget.settings);
                         Navigator.pop(context);
@@ -1650,8 +1918,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: _spectrumFocusNode.hasFocus
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.white12,
+                                ? theme.colorScheme.primary
+                                : borderColor,
                             width: _spectrumFocusNode.hasFocus ? 2.5 : 1.0,
                           ),
                         ),
@@ -1702,7 +1970,10 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                       decoration: BoxDecoration(
                         color: HSVColor.fromAHSV(1.0, _hue, _saturation, _value).toColor(),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white24, width: 1.5),
+                        border: Border.all(
+                          color: isDark ? Colors.white24 : Colors.black26,
+                          width: 1.5,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.35),
@@ -1725,8 +1996,8 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: _sliderFocusNode.hasFocus
-                                ? Theme.of(context).colorScheme.primary
-                                : Colors.white12,
+                                ? theme.colorScheme.primary
+                                : borderColor,
                             width: _sliderFocusNode.hasFocus ? 2.5 : 1.0,
                           ),
                         ),
@@ -1795,23 +2066,23 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                     height: 38,
                                     child: TextField(
                                       controller: _hexController,
-                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                      style: TextStyle(color: onSurface, fontSize: 13, fontWeight: FontWeight.w500),
                                       decoration: InputDecoration(
-                                        fillColor: const Color(0xFF1E293B),
+                                        fillColor: fieldBg,
                                         filled: true,
                                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                        prefixIcon: const Icon(Icons.tag_rounded, color: Colors.white54, size: 14),
+                                        prefixIcon: Icon(Icons.tag_rounded, color: onSurface.withOpacity(0.5), size: 14),
                                         border: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Colors.white12),
+                                          borderSide: BorderSide(color: borderColor),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Colors.white12),
+                                          borderSide: BorderSide(color: borderColor),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                                          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
                                         ),
                                       ),
                                     ),
@@ -1819,7 +2090,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
 
                             // Format Dropdown
                             Row(
@@ -1829,29 +2100,29 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                     height: 38,
                                     child: DropdownButtonFormField<String>(
                                       value: _colorFormat,
-                                      dropdownColor: const Color(0xFF1E293B),
-                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                      dropdownColor: dialogBg,
+                                      style: TextStyle(color: onSurface, fontSize: 13, fontWeight: FontWeight.w500),
                                       decoration: InputDecoration(
-                                        fillColor: const Color(0xFF1E293B),
+                                        fillColor: fieldBg,
                                         filled: true,
                                         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         border: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Colors.white12),
+                                          borderSide: BorderSide(color: borderColor),
                                         ),
                                         enabledBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: const BorderSide(color: Colors.white12),
+                                          borderSide: BorderSide(color: borderColor),
                                         ),
                                         focusedBorder: OutlineInputBorder(
                                           borderRadius: BorderRadius.circular(8),
-                                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                                          borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
                                         ),
                                       ),
-                                      items: const [
-                                        DropdownMenuItem(value: 'RGB', child: Text('RGB', style: TextStyle(color: Colors.white))),
-                                        DropdownMenuItem(value: 'HSV', child: Text('HSV', style: TextStyle(color: Colors.white))),
-                                        DropdownMenuItem(value: 'HSL', child: Text('HSL', style: TextStyle(color: Colors.white))),
+                                      items: [
+                                        DropdownMenuItem(value: 'RGB', child: Text('RGB', style: TextStyle(color: onSurface))),
+                                        DropdownMenuItem(value: 'HSV', child: Text('HSV', style: TextStyle(color: onSurface))),
+                                        DropdownMenuItem(value: 'HSL', child: Text('HSL', style: TextStyle(color: onSurface))),
                                       ],
                                       onChanged: (v) {
                                         if (v != null) {
@@ -1866,7 +2137,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
 
                             // Numeric Inputs
                             ...List.generate(3, (idx) {
@@ -1875,7 +2146,7 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                   ? _field1Controller
                                   : (idx == 1 ? _field2Controller : _field3Controller);
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 8.0),
+                                padding: const EdgeInsets.only(bottom: 4.0),
                                 child: Row(
                                   children: [
                                     Expanded(
@@ -1884,9 +2155,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                         child: TextField(
                                           controller: controller,
                                           keyboardType: TextInputType.number,
-                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                                          style: TextStyle(color: onSurface, fontSize: 13, fontWeight: FontWeight.w500),
                                           decoration: InputDecoration(
-                                            fillColor: const Color(0xFF1E293B),
+                                            fillColor: fieldBg,
                                             filled: true,
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                             prefixIcon: Padding(
@@ -1895,21 +2166,21 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                                 widthFactor: 1.0,
                                                 child: Text(
                                                   label,
-                                                  style: const TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold),
+                                                  style: TextStyle(color: onSurface.withOpacity(0.5), fontSize: 12, fontWeight: FontWeight.bold),
                                                 ),
                                               ),
                                             ),
                                             border: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Colors.white12),
+                                              borderSide: BorderSide(color: borderColor),
                                             ),
                                             enabledBorder: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
-                                              borderSide: const BorderSide(color: Colors.white12),
+                                              borderSide: BorderSide(color: borderColor),
                                             ),
                                             focusedBorder: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
-                                              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.5),
+                                              borderSide: BorderSide(color: theme.colorScheme.primary, width: 1.5),
                                             ),
                                           ),
                                         ),
@@ -1938,9 +2209,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               '기본 색',
-                              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                              style: TextStyle(color: onSurface.withOpacity(0.7), fontSize: 13, fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
                             Expanded(
@@ -1986,9 +2257,9 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                           children: [
                             Row(
                               children: [
-                                const Text(
+                                Text(
                                   '사용자 지정 색',
-                                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+                                  style: TextStyle(color: onSurface.withOpacity(0.7), fontSize: 13, fontWeight: FontWeight.bold),
                                 ),
                                 const Spacer(),
                                 Material(
@@ -1999,12 +2270,12 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                                     child: Container(
                                       padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.white24),
+                                        border: Border.all(color: isDark ? Colors.white24 : Colors.black26),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         Icons.add,
-                                        color: Colors.white,
+                                        color: onSurface,
                                         size: 14,
                                       ),
                                     ),
@@ -2063,12 +2334,12 @@ class _ColorPickerDialogState extends State<ColorPickerDialog> {
                         triggerInteractionHaptic(widget.settings);
                         Navigator.pop(context);
                       },
-                      child: const Text('취소', style: TextStyle(color: Colors.white60, fontWeight: FontWeight.bold)),
+                      child: Text('취소', style: TextStyle(color: onSurface.withOpacity(0.6), fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 12),
                     FilledButton(
                       style: FilledButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: theme.colorScheme.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       ),
@@ -2190,11 +2461,14 @@ class _CustomColorCircleState extends State<CustomColorCircle> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     Widget child;
     if (widget.isEmpty) {
       child = CustomPaint(
         size: const Size(18, 18),
-        painter: DashedCirclePainter(color: Colors.white30),
+        painter: DashedCirclePainter(color: isDark ? Colors.white30 : Colors.black.withOpacity(0.3)),
       );
     } else {
       final bool isWhiteOrVeryBright = widget.color.red > 220 && widget.color.green > 220 && widget.color.blue > 220;
@@ -2205,7 +2479,9 @@ class _CustomColorCircleState extends State<CustomColorCircle> {
           color: widget.color,
           shape: BoxShape.circle,
           border: Border.all(
-            color: isWhiteOrVeryBright ? Colors.black38 : Colors.white24,
+            color: isWhiteOrVeryBright
+                ? Colors.black38
+                : (isDark ? Colors.white24 : Colors.black26),
             width: 1,
           ),
           boxShadow: [
@@ -2228,7 +2504,7 @@ class _CustomColorCircleState extends State<CustomColorCircle> {
               children: [
                 CustomPaint(
                   size: const Size(24, 24),
-                  painter: const DashedCirclePainter(color: Colors.white70),
+                  painter: DashedCirclePainter(color: isDark ? Colors.white70 : Colors.black54),
                 ),
                 child,
               ],
@@ -2262,9 +2538,9 @@ class _CustomColorCircleState extends State<CustomColorCircle> {
               shape: BoxShape.circle,
               border: Border.all(
                 color: _isFocused
-                    ? Theme.of(context).colorScheme.primary
+                    ? theme.colorScheme.primary
                     : ((_isHovered && !widget.isEmpty)
-                        ? Colors.white54
+                        ? (isDark ? Colors.white54 : Colors.black54)
                         : Colors.transparent),
                 width: 2,
               ),
@@ -2299,6 +2575,8 @@ class _BasicColorCircleState extends State<BasicColorCircle> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bool isWhiteOrVeryBright = widget.color.red > 220 && widget.color.green > 220 && widget.color.blue > 220;
 
     return Focus(
@@ -2325,10 +2603,10 @@ class _BasicColorCircleState extends State<BasicColorCircle> {
               shape: BoxShape.circle,
               border: Border.all(
                 color: widget.isSelected
-                    ? Colors.white
+                    ? (isDark ? Colors.white : Colors.black)
                     : (_isFocused || _isHovered
-                        ? Theme.of(context).colorScheme.primary
-                        : (isWhiteOrVeryBright ? Colors.black38 : Colors.white24)),
+                        ? theme.colorScheme.primary
+                        : (isWhiteOrVeryBright ? Colors.black38 : (isDark ? Colors.white24 : Colors.black26))),
                 width: widget.isSelected ? 2.5 : (_isFocused || _isHovered ? 2.0 : 1.0),
               ),
               boxShadow: [

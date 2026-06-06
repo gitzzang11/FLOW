@@ -56,6 +56,7 @@ class PromptItem {
     required this.updatedAt,
     required this.segments,
     this.isPinned = false,
+    this.imagePaths = const [],
   });
 
   final String id;
@@ -67,6 +68,7 @@ class PromptItem {
   final DateTime updatedAt;
   final List<PromptSegment> segments;
   final bool isPinned;
+  final List<String> imagePaths;
 
   String get plainText => segments.map((segment) => segment.text).join();
 
@@ -80,6 +82,7 @@ class PromptItem {
     DateTime? updatedAt,
     List<PromptSegment>? segments,
     bool? isPinned,
+    List<String>? imagePaths,
   }) {
     return PromptItem(
       id: id ?? this.id,
@@ -91,6 +94,7 @@ class PromptItem {
       updatedAt: updatedAt ?? this.updatedAt,
       segments: segments ?? this.segments,
       isPinned: isPinned ?? this.isPinned,
+      imagePaths: imagePaths ?? this.imagePaths,
     );
   }
 
@@ -107,6 +111,7 @@ class PromptItem {
           .map((item) => PromptSegment.fromJson(item as Map<String, dynamic>))
           .toList(),
       isPinned: json['isPinned'] as bool? ?? false,
+      imagePaths: (json['imagePaths'] as List<dynamic>? ?? []).cast<String>(),
     );
   }
 
@@ -120,6 +125,7 @@ class PromptItem {
     'updatedAt': updatedAt.toIso8601String(),
     'segments': segments.map((item) => item.toJson()).toList(),
     'isPinned': isPinned,
+    'imagePaths': imagePaths,
   };
 }
 
