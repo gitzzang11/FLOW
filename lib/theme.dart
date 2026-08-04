@@ -1,4 +1,86 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+
+void showAppToast(
+  BuildContext context,
+  String message, {
+  IconData icon = Icons.check_circle_outline_rounded,
+  bool isError = false,
+  Duration duration = const Duration(seconds: 3),
+  String? actionLabel,
+  VoidCallback? onAction,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final accent = isError
+      ? (isDark ? const Color(0xFFFF8A80) : scheme.error)
+      : (isDark ? const Color(0xFF80CBC4) : scheme.primary);
+  final toastBackground = isDark
+      ? const Color(0xFF242629)
+      : scheme.surface;
+  final toastForeground = isDark ? Colors.white : scheme.onSurface;
+  final toastWidth = math.min(
+    420.0,
+    math.max(260.0, MediaQuery.sizeOf(context).width - 32),
+  );
+  final messenger = ScaffoldMessenger.of(context);
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: duration,
+        behavior: SnackBarBehavior.floating,
+        width: toastWidth,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        backgroundColor: toastBackground,
+        elevation: isDark ? 12 : 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: accent.withOpacity(isDark ? 0.45 : 0.25),
+          ),
+        ),
+        content: Row(
+          mainAxisSize: MainAxisSize.max,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(isDark ? 0.18 : 0.10),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isError ? Icons.error_outline_rounded : icon,
+                size: 18,
+                color: accent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: toastForeground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        action: actionLabel == null
+            ? null
+            : SnackBarAction(
+                label: actionLabel,
+                textColor: accent,
+                onPressed: onAction ?? () {},
+              ),
+      ),
+    );
+}
 
 ThemeData buildTheme(Brightness brightness, Color seed) {
   final base = ThemeData(
@@ -66,7 +148,12 @@ ThemeData buildTheme(Brightness brightness, Color seed) {
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
     ),
-    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      showCloseIcon: false,
+      insetPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: brightness == Brightness.dark

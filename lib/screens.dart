@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'backup_file_io.dart';
 import 'models.dart';
 import 'store.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 class FlowShell extends StatefulWidget {
@@ -37,6 +38,10 @@ class _FlowShellState extends State<FlowShell> {
   bool _isSearching = false;
   final _selectedTags = <String>{};
   late final TextEditingController _searchController;
+
+  PromptItem? _activePromptForEdit;
+  bool _isEditorOpen = false;
+  bool _isCreateMode = false;
 
   @override
   void initState() {
@@ -117,6 +122,60 @@ class _FlowShellState extends State<FlowShell> {
     );
   }
 
+  IconData _sortModeIcon(PromptSortMode mode) {
+    switch (mode) {
+      case PromptSortMode.newest:
+        return Icons.arrow_downward_rounded;
+      case PromptSortMode.oldest:
+        return Icons.arrow_upward_rounded;
+      case PromptSortMode.title:
+        return Icons.sort_by_alpha_rounded;
+    }
+  }
+
+  PopupMenuItem<PromptSortMode> _buildSortMenuItem(
+    BuildContext context,
+    PromptSortMode mode,
+    String label,
+  ) {
+    final isSelected = widget.store.settings.promptSortMode == mode;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return PopupMenuItem<PromptSortMode>(
+      value: mode,
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primary.withOpacity(0.10) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _sortModeIcon(mode),
+              size: 18,
+              color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? colorScheme.primary : null,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_rounded, size: 18, color: colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _startSearch() {
     if (_isSearching) return;
     triggerInteractionHaptic(widget.store.settings);
@@ -142,20 +201,33 @@ class _FlowShellState extends State<FlowShell> {
     widget.onRequireRelock();
   }
 
+  AppShortcut _shortcutFor(AppShortcutAction action) {
+    return widget.store.settings.shortcuts[action.id] ??
+        AppShortcut.fromAction(action);
+  }
+
+  SingleActivator _activatorFor(AppShortcutAction action) {
+    final shortcut = _shortcutFor(action);
+    return SingleActivator(
+      shortcut.key,
+      control: shortcut.control,
+      alt: shortcut.alt,
+      shift: shortcut.shift,
+      meta: shortcut.meta,
+    );
+  }
+
   Widget _withDesktopShortcuts(Widget child) {
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
+        _activatorFor(AppShortcutAction.newPrompt): () {
           triggerInteractionHaptic(widget.store.settings);
           _openEditor();
         },
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-            _startSearch,
-        const SingleActivator(LogicalKeyboardKey.comma, control: true):
-            _openSettings,
-        const SingleActivator(LogicalKeyboardKey.keyL, control: true):
-            _lockNowFromKeyboard,
-        const SingleActivator(LogicalKeyboardKey.escape): () {
+        _activatorFor(AppShortcutAction.search): _startSearch,
+        _activatorFor(AppShortcutAction.settings): _openSettings,
+        _activatorFor(AppShortcutAction.lock): _lockNowFromKeyboard,
+        _activatorFor(AppShortcutAction.closeSearch): () {
           if (_isSearching ||
               _searchQuery.isNotEmpty ||
               _selectedTags.isNotEmpty) {
@@ -191,6 +263,7 @@ class _FlowShellState extends State<FlowShell> {
     return PromptCard(
       key: ValueKey(prompt.id),
       prompt: prompt,
+      settings: widget.store.settings,
       isGrid: isGrid,
       folderName: folderName,
       onCopy: () => _copy(prompt),
@@ -211,49 +284,55 @@ class _FlowShellState extends State<FlowShell> {
     await widget.onStoreChanged();
   }
 
-  Future<void> _openEditor({PromptItem? existing}) async {
-    final result = await showDialog<PromptItem>(
-      context: context,
-      builder: (ctx) => PromptEditorDialog(
-        folders: widget.store.folders,
-        prompt: existing,
-        initialFolderId: existing == null
-            ? _selectedFolderId
-            : existing.folderId,
-        favoriteColors: widget.store.settings.favoriteColors,
-        onToggleFavorite: (color) {
-          final favorites = List<int>.from(
-            widget.store.settings.favoriteColors,
-          );
-          if (favorites.contains(color)) {
-            favorites.remove(color);
-          } else {
-            favorites.add(color);
-          }
-          widget.store.settings = widget.store.settings.copyWith(
-            favoriteColors: favorites,
-          );
-          widget.onStoreChanged();
-        },
-        settings: widget.store.settings,
-      ),
-    );
-    if (result == null) return;
-
+  void _openEditor({PromptItem? existing}) {
     setState(() {
-      final idx = widget.store.prompts.indexWhere((p) => p.id == result.id);
-      if (idx >= 0) {
-        widget.store.prompts[idx] = result;
-      } else {
-        widget.store.prompts.add(result);
+      if (existing != null && _isEditorOpen && _activePromptForEdit?.id == existing.id) {
+        _closeEditor();
+        return;
       }
+      _activePromptForEdit = existing;
+      _isCreateMode = (existing == null);
+      _isEditorOpen = true;
     });
-    await widget.onStoreChanged();
+  }
+
+  void _closeEditor() {
+    setState(() {
+      _activePromptForEdit = null;
+      _isCreateMode = false;
+      _isEditorOpen = false;
+    });
   }
 
   Future<void> _deletePrompt(PromptItem p) async {
+    final deletedIndex = widget.store.prompts.indexWhere((item) => item.id == p.id);
+    if (deletedIndex < 0) return;
+
     setState(() {
-      widget.store.prompts.removeWhere((item) => item.id == p.id);
+      if (_activePromptForEdit?.id == p.id) {
+        _closeEditor();
+      }
+      widget.store.prompts.removeAt(deletedIndex);
+    });
+    await widget.onStoreChanged();
+
+    if (!mounted) return;
+    showAppToast(
+      context,
+      '"${p.title}" 프롬프트를 삭제했습니다.',
+      icon: Icons.delete_outline_rounded,
+      duration: const Duration(seconds: 5),
+      actionLabel: '되돌리기',
+      onAction: () => _restoreDeletedPrompt(p, deletedIndex),
+    );
+  }
+
+  Future<void> _restoreDeletedPrompt(PromptItem prompt, int originalIndex) async {
+    if (widget.store.prompts.any((item) => item.id == prompt.id)) return;
+
+    final insertIndex = math.min(originalIndex, widget.store.prompts.length);
+    setState(() {
+      widget.store.prompts.insert(insertIndex, prompt);
     });
     await widget.onStoreChanged();
   }
@@ -277,13 +356,59 @@ class _FlowShellState extends State<FlowShell> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(folder == null ? '폴더 생성' : '폴더 이름 변경'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+            color: Theme.of(ctx).colorScheme.outlineVariant.withOpacity(0.35),
+          ),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+        title: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                folder == null
+                    ? Icons.create_new_folder_rounded
+                    : Icons.drive_file_rename_outline_rounded,
+                color: Theme.of(ctx).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(folder == null ? '새 폴더' : '폴더 이름 변경'),
+          ],
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
+          textInputAction: TextInputAction.done,
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) Navigator.pop(ctx, value.trim());
+          },
+          decoration: InputDecoration(
             labelText: '폴더 이름',
-            hintText: '내 업무용 프롬프트',
+            hintText: '예: 업무용 프롬프트',
+            prefixIcon: const Icon(Icons.folder_outlined),
+            filled: true,
+            fillColor: Theme.of(ctx).colorScheme.surfaceContainerHighest.withOpacity(0.45),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(
+                color: Theme.of(ctx).colorScheme.primary,
+                width: 1.5,
+              ),
+            ),
           ),
         ),
         actions: [
@@ -297,13 +422,15 @@ class _FlowShellState extends State<FlowShell> {
           FilledButton(
             onPressed: () {
               triggerInteractionHaptic(widget.store.settings);
-              Navigator.pop(ctx, controller.text.trim());
+              final name = controller.text.trim();
+              if (name.isNotEmpty) Navigator.pop(ctx, name);
             },
-            child: const Text('확인'),
+            child: Text(folder == null ? '폴더 만들기' : '저장'),
           ),
         ],
       ),
     );
+    controller.dispose();
 
     if (result != null && result.isNotEmpty) {
       setState(() {
@@ -367,13 +494,23 @@ class _FlowShellState extends State<FlowShell> {
     await widget.onStoreChanged();
   }
 
+  Future<void> _reorderFolder(int oldIdx, int newIdx) async {
+    triggerInteractionHaptic(widget.store.settings);
+    setState(() {
+      if (oldIdx < newIdx) {
+        newIdx -= 1;
+      }
+      final folder = widget.store.folders.removeAt(oldIdx);
+      widget.store.folders.insert(newIdx, folder);
+    });
+    await widget.onStoreChanged();
+  }
+
   Future<void> _copy(PromptItem p) async {
     triggerInteractionHaptic(widget.store.settings);
     await Clipboard.setData(ClipboardData(text: p.plainText));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('클립보드에 복사되었습니다.')));
+    showAppToast(context, '클립보드에 복사되었습니다.', icon: Icons.copy_rounded);
   }
 
   Future<String?> _showPinDialog({required String title}) async {
@@ -435,9 +572,15 @@ class _FlowShellState extends State<FlowShell> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    final isError = message.contains('오류') ||
+        message.contains('invalid') ||
+        message.contains('Could not');
+    showAppToast(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message,
+      icon: isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+      isError: isError,
+    );
   }
 
   Future<void> _closeSettingsSheet(BuildContext sheetContext) async {
@@ -483,16 +626,14 @@ class _FlowShellState extends State<FlowShell> {
     await widget.onStoreChanged();
     if (!mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('PIN이 변경되었습니다.')));
+    showAppToast(context, 'PIN이 변경되었습니다.', icon: Icons.lock_reset_rounded);
   }
 
   Future<void> _handleBackup() async {
     triggerInteractionHaptic(widget.store.settings);
     try {
       final backupBytes = Uint8List.fromList(
-        utf8.encode(widget.store.exportToJson()),
+        utf8.encode(widget.store.exportToJson(includeImages: true)),
       );
       final initialDirectory = await getDefaultBackupDirectory();
       final fileName =
@@ -674,6 +815,23 @@ class _FlowShellState extends State<FlowShell> {
           );
           widget.onStoreChanged();
           setState(() {});
+        },
+        onOpenShortcuts: () => _openShortcutSettings(ctx),
+      ),
+    );
+  }
+
+  void _openShortcutSettings(BuildContext settingsContext) {
+    Navigator.pop(settingsContext);
+    showDialog<void>(
+      context: context,
+      builder: (_) => ShortcutSettingsDialog(
+        settings: widget.store.settings,
+        onChanged: (nextSettings) {
+          setState(() {
+            widget.store.settings = nextSettings;
+          });
+          widget.onStoreChanged();
         },
       ),
     );
@@ -868,6 +1026,7 @@ class _FlowShellState extends State<FlowShell> {
                     triggerInteractionHaptic(widget.store.settings);
                     _deleteFolder(f);
                   },
+                  onReorder: _reorderFolder,
                 ),
               ),
         body: Row(
@@ -895,13 +1054,14 @@ class _FlowShellState extends State<FlowShell> {
                     triggerInteractionHaptic(widget.store.settings);
                     _deleteFolder(f);
                   },
+                  onReorder: _reorderFolder,
                 ),
               ),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   const cardWidth = 184.0;
-                  const cardHeight = 248.0;
+                  const cardHeight = 246.0;
                   const crossAxisSpacing = 16.0;
                   const mainAxisSpacing = 16.0;
                   const padding = 16.0;
@@ -943,46 +1103,103 @@ class _FlowShellState extends State<FlowShell> {
                           child: Align(
                             alignment: Alignment.centerRight,
                             child: PopupMenuButton<PromptSortMode>(
-                              tooltip: '정렬',
+                              tooltip: '정렬 방식',
+                              position: PopupMenuPosition.under,
+                              offset: const Offset(0, 8),
+                              elevation: 8,
+                              color: Theme.of(context).colorScheme.surface,
+                              constraints: const BoxConstraints(minWidth: 210),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                side: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant
+                                      .withOpacity(0.35),
+                                ),
+                              ),
                               onSelected: (mode) {
                                 triggerInteractionHaptic(widget.store.settings);
                                 _changeSortMode(mode);
                               },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: PromptSortMode.newest,
-                                  child: Text('최신순'),
+                              itemBuilder: (context) => [
+                                PopupMenuItem<PromptSortMode>(
+                                  enabled: false,
+                                  height: 36,
+                                  child: Text(
+                                    '정렬 기준',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                                  ),
                                 ),
-                                PopupMenuItem(
-                                  value: PromptSortMode.oldest,
-                                  child: Text('오래된순'),
+                                const PopupMenuDivider(height: 1),
+                                _buildSortMenuItem(
+                                  context,
+                                  PromptSortMode.newest,
+                                  '최신순',
                                 ),
-                                PopupMenuItem(
-                                  value: PromptSortMode.title,
-                                  child: Text('이름순'),
+                                _buildSortMenuItem(
+                                  context,
+                                  PromptSortMode.oldest,
+                                  '오래된순',
+                                ),
+                                _buildSortMenuItem(
+                                  context,
+                                  PromptSortMode.title,
+                                  '이름순',
                                 ),
                               ],
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
-                                  vertical: 10,
+                                  vertical: 11,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).cardColor,
-                                  borderRadius: BorderRadius.circular(18),
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(16),
                                   border: Border.all(
                                     color: Theme.of(context)
                                         .colorScheme
-                                        .outlineVariant
-                                        .withOpacity(0.22),
+                                        .primary
+                                        .withOpacity(0.18),
                                   ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withOpacity(0.08),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.sort_rounded, size: 18),
+                                    Icon(
+                                      _sortModeIcon(
+                                        widget.store.settings.promptSortMode,
+                                      ),
+                                      size: 18,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
                                     const SizedBox(width: 8),
-                                    Text(_sortModeLabel),
+                                    Text(
+                                      _sortModeLabel,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Theme.of(context).colorScheme.primary,
+                                      ),
+                                    ),
                                     const SizedBox(width: 4),
                                     const Icon(
                                       Icons.expand_more_rounded,
@@ -1130,13 +1347,70 @@ class _FlowShellState extends State<FlowShell> {
                 },
               ),
             ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              width: _isEditorOpen ? 420.0 : 0.0,
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: ClipRect(
+                child: _isEditorOpen
+                    ? RightSideEditor(
+                        key: ValueKey(_activePromptForEdit?.id ?? 'create'),
+                        folders: widget.store.folders,
+                        prompt: _activePromptForEdit,
+                        initialFolderId: _activePromptForEdit == null
+                            ? _selectedFolderId
+                            : _activePromptForEdit!.folderId,
+                        favoriteColors: widget.store.settings.favoriteColors,
+                        onToggleFavorite: (color) {
+                          final favorites = List<int>.from(
+                            widget.store.settings.favoriteColors,
+                          );
+                          if (favorites.contains(color)) {
+                            favorites.remove(color);
+                          } else {
+                            favorites.add(color);
+                          }
+                          widget.store.settings = widget.store.settings.copyWith(
+                            favoriteColors: favorites,
+                          );
+                          widget.onStoreChanged();
+                        },
+                        settings: widget.store.settings,
+                        onSave: (result) async {
+                          setState(() {
+                            final idx = widget.store.prompts.indexWhere((p) => p.id == result.id);
+                            if (idx >= 0) {
+                              widget.store.prompts[idx] = result;
+                            } else {
+                              widget.store.prompts.add(result);
+                            }
+                            _activePromptForEdit = null;
+                            _isEditorOpen = false;
+                          });
+                          await widget.onStoreChanged();
+                        },
+                        onClose: _closeEditor,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            triggerInteractionHaptic(widget.store.settings);
-            _openEditor();
-          },
+        floatingActionButton: _isEditorOpen
+            ? null
+            : FloatingActionButton(
+                onPressed: () {
+                  triggerInteractionHaptic(widget.store.settings);
+                  _openEditor();
+                },
           backgroundColor: isDark
               ? const Color(0xFF2C2C2E)
               : const Color(0xFFE5E5EA),

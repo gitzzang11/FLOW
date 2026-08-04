@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:ui' show ImageFilter, lerpDouble;
 import 'dart:math' as math;
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -18,6 +20,7 @@ class FolderSidebar extends StatelessWidget {
     required this.onCreateFolder,
     required this.onEditFolder,
     required this.onDeleteFolder,
+    required this.onReorder,
   });
 
   final List<FolderItem> folders;
@@ -27,6 +30,7 @@ class FolderSidebar extends StatelessWidget {
   final VoidCallback onCreateFolder;
   final ValueChanged<FolderItem> onEditFolder;
   final ValueChanged<FolderItem> onDeleteFolder;
+  final ReorderCallback onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -100,36 +104,123 @@ class FolderSidebar extends StatelessWidget {
                 count: prompts.length,
                 selected: selectedFolderId.isEmpty,
                 onTap: () => onSelectFolder(''),
-                settings:
-                    const AppSettings(), // Dummy/placeholder or just ignore since we don't trigger haptic here (handled in callbacks)
+                settings: const AppSettings(),
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: ListView.separated(
+                child: ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
                   itemCount: folders.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  onReorder: onReorder,
+                  proxyDecorator: (child, index, animation) {
+                    return AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) {
+                        final double animValue = Curves.easeInOut.transform(animation.value);
+                        final double elevation = lerpDouble(0, 6, animValue)!;
+                        return Material(
+                          elevation: elevation,
+                          color: Colors.transparent,
+                          shadowColor: Colors.black.withOpacity(0.1),
+                          child: child,
+                        );
+                      },
+                      child: child,
+                    );
+                  },
                   itemBuilder: (context, index) {
                     final folder = folders[index];
                     final count = prompts
                         .where((p) => p.folderId == folder.id)
                         .length;
-                    return _FolderTile(
-                      label: folder.name,
-                      count: count,
-                      selected: selectedFolderId == folder.id,
-                      onTap: () => onSelectFolder(folder.id),
-                      settings: const AppSettings(),
-                      trailing: PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_horiz_rounded, size: 20),
-                        tooltip: '폴더 설정',
-                        onSelected: (value) {
-                          if (value == 'edit') onEditFolder(folder);
-                          if (value == 'delete') onDeleteFolder(folder);
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(value: 'edit', child: Text('이름 변경')),
-                          PopupMenuItem(value: 'delete', child: Text('삭제')),
-                        ],
+                    return ReorderableDelayedDragStartListener(
+                      key: ValueKey(folder.id),
+                      index: index,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: _FolderTile(
+                          label: folder.name,
+                          count: count,
+                          selected: selectedFolderId == folder.id,
+                          onTap: () => onSelectFolder(folder.id),
+                          settings: const AppSettings(),
+                          trailing: PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_horiz_rounded, size: 20),
+                            tooltip: '폴더 설정',
+                            position: PopupMenuPosition.under,
+                            offset: const Offset(-132, 8),
+                            elevation: 8,
+                            constraints: const BoxConstraints(minWidth: 176),
+                            color: Theme.of(context).colorScheme.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant
+                                    .withOpacity(0.35),
+                              ),
+                            ),
+                            onSelected: (value) {
+                              if (value == 'edit') onEditFolder(folder);
+                              if (value == 'delete') onDeleteFolder(folder);
+                            },
+                            itemBuilder: (context) {
+                              final colorScheme = Theme.of(context).colorScheme;
+                              return [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  height: 50,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 9,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(11),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.drive_file_rename_outline_rounded, size: 18),
+                                        SizedBox(width: 12),
+                                        Text('이름 변경'),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  height: 50,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 9,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(11),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 18,
+                                          color: colorScheme.error,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          '삭제',
+                                          style: TextStyle(color: colorScheme.error),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ];
+                            },
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -496,6 +587,7 @@ class PromptCard extends StatefulWidget {
   const PromptCard({
     super.key,
     required this.prompt,
+    required this.settings,
     this.isGrid = false,
     required this.folderName,
     required this.onCopy,
@@ -506,6 +598,7 @@ class PromptCard extends StatefulWidget {
   });
 
   final PromptItem prompt;
+  final AppSettings settings;
   final String folderName;
   final bool isGrid;
   final VoidCallback onCopy;
@@ -523,10 +616,130 @@ class _PromptCardState extends State<PromptCard> {
   bool _isFocused = false;
   final FocusNode _focusNode = FocusNode();
 
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _isOverlayHovered = false;
+  bool _isIconHovered = false;
+
+  AppShortcut _shortcutFor(AppShortcutAction action) {
+    return widget.settings.shortcuts[action.id] ??
+        AppShortcut.fromAction(action);
+  }
+
+  bool _matchesShortcut(AppShortcutAction action, KeyEvent event) {
+    if (!_isHovered) return false;
+
+    final shortcut = _shortcutFor(action);
+    final keyboard = HardwareKeyboard.instance;
+    return event.logicalKey == shortcut.key &&
+        keyboard.isControlPressed == shortcut.control &&
+        keyboard.isAltPressed == shortcut.alt &&
+        keyboard.isShiftPressed == shortcut.shift &&
+        keyboard.isMetaPressed == shortcut.meta;
+  }
+
   @override
   void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _showOverlay() {
+    if (_overlayEntry != null) return;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Positioned(
+          width: math.min(widget.prompt.imagePaths.length * 44.0 + 8.0, 180.0),
+          child: CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            offset: const Offset(-8, 28),
+            child: MouseRegion(
+              onEnter: (_) {
+                _isOverlayHovered = true;
+              },
+              onExit: (_) {
+                _isOverlayHovered = false;
+                _hideOverlayWithDelay();
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark ? Colors.white12 : Colors.black12,
+                      width: 1,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: widget.prompt.imagePaths.map((path) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 2),
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isDark ? Colors.white24 : Colors.black12,
+                            ),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.broken_image, size: 16),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _hideOverlayWithDelay() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+      if (!_isIconHovered && !_isOverlayHovered) {
+        _overlayEntry?.remove();
+        _overlayEntry = null;
+      }
+    });
+  }
+
+  void _showImageViewerDialog(BuildContext context, List<String> paths) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) {
+        return _ImageViewerDialog(imagePaths: paths);
+      },
+    );
   }
 
   bool _isLocked() {
@@ -669,25 +882,24 @@ class _PromptCardState extends State<PromptCard> {
       onFocusChange: (focused) => setState(() => _isFocused = focused),
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent) {
-          if (event.logicalKey == LogicalKeyboardKey.enter) {
+          if (_matchesShortcut(AppShortcutAction.editPrompt, event)) {
             widget.onEdit();
             return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.space) {
+          } else if (_matchesShortcut(AppShortcutAction.copyPrompt, event)) {
             widget.onCopy();
             return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.delete) {
+          } else if (_matchesShortcut(AppShortcutAction.deletePrompt, event)) {
             widget.onDelete();
             return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.keyD &&
-                     HardwareKeyboard.instance.isControlPressed) {
+          } else if (_matchesShortcut(AppShortcutAction.duplicatePrompt, event)) {
             widget.onDuplicate();
             return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.keyP) {
+          } else if (_matchesShortcut(AppShortcutAction.togglePin, event)) {
             widget.onTogglePin();
             return KeyEventResult.handled;
-          } else if (event.logicalKey == LogicalKeyboardKey.contextMenu ||
-                     (event.logicalKey == LogicalKeyboardKey.keyM &&
-                      HardwareKeyboard.instance.isShiftPressed)) {
+          } else if ((_isHovered &&
+                  event.logicalKey == LogicalKeyboardKey.contextMenu) ||
+              _matchesShortcut(AppShortcutAction.promptActions, event)) {
             _showActionSheet(context);
             return KeyEventResult.handled;
           }
@@ -695,13 +907,15 @@ class _PromptCardState extends State<PromptCard> {
         return KeyEventResult.ignored;
       },
       child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
+        onEnter: (_) {
+          setState(() => _isHovered = true);
+          _focusNode.requestFocus();
+        },
         onExit: (_) => setState(() => _isHovered = false),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: widget.onCopy,
-          onDoubleTap: widget.onEdit,
+          onTap: widget.onEdit,
           onLongPress: () => _showActionSheet(context),
           onSecondaryTapUp: (_) => _showActionSheet(context),
           child: AnimatedContainer(
@@ -721,217 +935,201 @@ class _PromptCardState extends State<PromptCard> {
                     ]
                   : [],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AspectRatio(
-                  aspectRatio: 1.0,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOut,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1C1C1E)
-                          : const Color(0xFFE5E5EA),
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: _isFocused
-                            ? Theme.of(context).colorScheme.primary
-                            : (_isHovered
-                                ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
-                                : Colors.transparent),
-                        width: 2,
-                      ),
-                    ),
-                    padding: widget.prompt.imagePaths.isEmpty
-                        ? const EdgeInsets.all(16)
-                        : EdgeInsets.zero,
-                    clipBehavior: Clip.antiAlias,
-                    child: widget.prompt.imagePaths.isEmpty
-                        ? Stack(
-                            children: [
-                              Positioned.fill(
-                                child: Padding(
-                                  padding: widget.prompt.isPinned
-                                      ? const EdgeInsets.only(right: 20)
-                                      : EdgeInsets.zero,
-                                  child: isLocked
-                                      ? Center(
-                                          child: Icon(
-                                            Icons.lock_rounded,
-                                            size: 40,
-                                            color: isDark
-                                                ? Colors.white30
-                                                : Colors.black26,
-                                          ),
-                                        )
-                                      : Align(
-                                          alignment: Alignment.topLeft,
-                                          child: Text.rich(
-                                            TextSpan(
-                                              children: widget.prompt.segments
-                                                  .map(
-                                                    (segment) => TextSpan(
-                                                      text: segment.text,
-                                                      style: TextStyle(
-                                                        color: Color(segment.colorValue),
-                                                        height: 1.4,
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                            ),
-                                            maxLines: 6,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                              if (widget.prompt.isPinned)
-                                Positioned(
-                                  top: 0,
-                                  right: 0,
+            child: AspectRatio(
+              aspectRatio: 3.0 / 4.0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1C1C1E)
+                      : const Color(0xFFE5E5EA),
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: _isFocused
+                        ? Theme.of(context).colorScheme.primary
+                        : (_isHovered
+                            ? Theme.of(context).colorScheme.primary.withOpacity(0.5)
+                            : Colors.transparent),
+                    width: 2,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    // Background Content
+                    if (widget.prompt.imagePaths.isEmpty)
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 52),
+                          child: isLocked
+                              ? Center(
                                   child: Icon(
-                                    Icons.push_pin_rounded,
-                                    size: 16,
-                                    color: Theme.of(context).colorScheme.primary,
+                                    Icons.lock_rounded,
+                                    size: 40,
+                                    color: isDark
+                                        ? Colors.white30
+                                        : Colors.black26,
+                                  ),
+                                )
+                              : Align(
+                                  alignment: Alignment.topLeft,
+                                  child: Text.rich(
+                                    TextSpan(
+                                      children: widget.prompt.segments
+                                          .map(
+                                            (segment) => TextSpan(
+                                              text: segment.text,
+                                              style: TextStyle(
+                                                color: Color(segment.colorValue),
+                                                height: 1.4,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                    maxLines: 6,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                            ],
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: Image.file(
-                                        File(widget.prompt.imagePaths.first),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            color: isDark ? Colors.white12 : Colors.black12,
-                                            child: const Center(
-                                              child: Icon(Icons.broken_image_outlined, size: 24),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    if (widget.prompt.imagePaths.length > 1)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.65),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(Icons.image, color: Colors.white, size: 10),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                '${widget.prompt.imagePaths.length}',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    if (widget.prompt.isPinned)
-                                      Positioned(
-                                        top: 8,
-                                        left: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withOpacity(0.5),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.push_pin_rounded,
-                                            size: 12,
-                                            color: Theme.of(context).colorScheme.primary,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
+                        ),
+                      )
+                    else
+                      Positioned.fill(
+                        child: Image.file(
+                          File(widget.prompt.imagePaths.first),
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: isDark ? Colors.white12 : Colors.black12,
+                              child: const Center(
+                                child: Icon(Icons.broken_image_outlined, size: 24),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                    // Image Viewer Indicator (Left-Top)
+                    if (widget.prompt.imagePaths.isNotEmpty)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: CompositedTransformTarget(
+                          link: _layerLink,
+                          child: MouseRegion(
+                            onEnter: (_) {
+                              _isIconHovered = true;
+                              _showOverlay();
+                            },
+                            onExit: (_) {
+                              _isIconHovered = false;
+                              _hideOverlayWithDelay();
+                            },
+                            child: GestureDetector(
+                              onTap: () => _showImageViewerDialog(context, widget.prompt.imagePaths),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.6),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white24, width: 1),
+                                ),
+                                child: const Icon(
+                                  Icons.collections_rounded,
+                                  color: Colors.white,
+                                  size: 16,
                                 ),
                               ),
-                              Expanded(
-                                flex: 2,
-                                child: Container(
-                                  color: isDark
-                                      ? Colors.white.withOpacity(0.02)
-                                      : Colors.black.withOpacity(0.01),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  child: isLocked
-                                      ? Center(
-                                          child: Icon(
-                                            Icons.lock_rounded,
-                                            size: 20,
-                                            color: isDark
-                                                ? Colors.white30
-                                                : Colors.black26,
-                                          ),
-                                        )
-                                      : Align(
-                                          alignment: Alignment.topLeft,
-                                          child: Text.rich(
-                                            TextSpan(
-                                              children: widget.prompt.segments
-                                                  .map(
-                                                    (segment) => TextSpan(
-                                                      text: segment.text,
-                                                      style: TextStyle(
-                                                        color: Color(segment.colorValue),
-                                                        height: 1.3,
-                                                        fontSize: 11,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                            ),
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                  ),
+                        ),
+                      ),
+
+                    // Pin Indicator (Right-Top)
+                    if (widget.prompt.isPinned)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.push_pin_rounded,
+                            size: 12,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ),
+
+                    // Bottom Glassmorphism Title Panel (Floating Oval Capsule)
+                    Positioned(
+                      bottom: 10,
+                      left: 10,
+                      right: 10,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        clipBehavior: Clip.antiAlias,
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.black.withOpacity(0.45)
+                                  : Colors.white.withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.03),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    widget.prompt.title,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Tooltip(
+                                  message: '프롬프트 복사',
+                                  child: IconButton(
+                                    onPressed: widget.onCopy,
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.all(4),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 28,
+                                    ),
+                                    icon: Icon(
+                                      Icons.copy_rounded,
+                                      size: 15,
+                                      color: isDark ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text(
-                    widget.prompt.title,
-                    style: titleStyle,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatMonthDay(widget.prompt.updatedAt),
-                  style: dateStyle,
-                  textAlign: TextAlign.center,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -973,8 +1171,8 @@ class EmptyStateCard extends StatelessWidget {
   }
 }
 
-class PromptEditorDialog extends StatefulWidget {
-  const PromptEditorDialog({
+class RightSideEditor extends StatefulWidget {
+  const RightSideEditor({
     super.key,
     required this.folders,
     this.prompt,
@@ -982,6 +1180,8 @@ class PromptEditorDialog extends StatefulWidget {
     required this.favoriteColors,
     required this.onToggleFavorite,
     required this.settings,
+    required this.onSave,
+    required this.onClose,
   });
 
   final List<FolderItem> folders;
@@ -990,18 +1190,26 @@ class PromptEditorDialog extends StatefulWidget {
   final List<int> favoriteColors;
   final ValueChanged<int> onToggleFavorite;
   final AppSettings settings;
+  final ValueChanged<PromptItem> onSave;
+  final VoidCallback onClose;
 
   @override
-  State<PromptEditorDialog> createState() => _PromptEditorDialogState();
+  State<RightSideEditor> createState() => _RightSideEditorState();
 }
 
-class _PromptEditorDialogState extends State<PromptEditorDialog> {
+class _RightSideEditorState extends State<RightSideEditor> {
   late TextEditingController _titleController;
   late TextEditingController _tagsController;
   late String _selectedFolderId;
   late int _titleColorValue;
+  late int _defaultTextColor;
   late List<PromptSegment> _segments;
   late List<String> _imagePaths;
+  bool _isDragOver = false;
+
+  int get _currentDefaultTextColor => widget.settings.darkMode
+      ? Colors.white.value
+      : Colors.black.value;
 
   final List<Color> _presetColors = [
     const Color(0xFF111827),
@@ -1033,15 +1241,18 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
   @override
   void initState() {
     super.initState();
+    _defaultTextColor = widget.settings.darkMode
+        ? Colors.white.value
+        : Colors.black.value;
     _titleController = TextEditingController(text: widget.prompt?.title ?? '');
     _tagsController = TextEditingController(
       text: widget.prompt?.tags.join(', ') ?? '',
     );
     _selectedFolderId = widget.prompt?.folderId ?? widget.initialFolderId;
-    _titleColorValue = widget.prompt?.titleColorValue ?? AppPalette.ink.value;
+    _titleColorValue = widget.prompt?.titleColorValue ?? _defaultTextColor;
     _segments =
         widget.prompt?.segments.map((s) => s.copyWith()).toList() ??
-        [PromptSegment(text: '', colorValue: AppPalette.ink.value)];
+        [PromptSegment(text: '', colorValue: _defaultTextColor)];
     _imagePaths = List<String>.from(widget.prompt?.imagePaths ?? []);
   }
 
@@ -1049,7 +1260,8 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
     triggerInteractionHaptic(widget.settings);
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'],
         allowMultiple: true,
       );
       if (result != null && result.files.isNotEmpty) {
@@ -1098,8 +1310,7 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
         .toList();
     final now = DateTime.now();
 
-    Navigator.pop(
-      context,
+    widget.onSave(
       PromptItem(
         id: widget.prompt?.id ?? PromptStore.newId(),
         title: title,
@@ -1138,290 +1349,385 @@ class _PromptEditorDialogState extends State<PromptEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog.fullscreen(
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.prompt == null ? '프롬프트 만들기' : '프롬프트 편집'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                triggerInteractionHaptic(widget.settings);
-                Navigator.pop(context);
-              },
-              child: const Text('취소'),
+    return DropTarget(
+      onDragEntered: (details) => setState(() => _isDragOver = true),
+      onDragExited: (details) => setState(() => _isDragOver = false),
+      onDragDone: (details) async {
+        setState(() => _isDragOver = false);
+        final files = details.files;
+        final allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
+        final appDataDir = Platform.environment['APPDATA'];
+        final imagesDir = Directory('$appDataDir/Flow/images');
+        if (!imagesDir.existsSync()) {
+          imagesDir.createSync(recursive: true);
+        }
+
+        final List<String> copiedPaths = [];
+        for (final file in files) {
+          final ext = file.name.split('.').last.toLowerCase();
+          if (allowedExtensions.contains(ext)) {
+            final originalFile = File(file.path);
+            final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+            final targetFile = File('${imagesDir.path}/$fileName');
+            await originalFile.copy(targetFile.path);
+            copiedPaths.add(targetFile.path);
+          }
+        }
+
+        if (copiedPaths.isNotEmpty) {
+          setState(() {
+            _imagePaths.addAll(copiedPaths);
+          });
+        }
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              title: Text(
+                widget.prompt == null ? '프롬프트 만들기' : '프롬프트 편집',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  triggerInteractionHaptic(widget.settings);
+                  widget.onClose();
+                },
+                tooltip: '닫기',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: _save,
+                  child: const Text('저장'),
+                ),
+                const SizedBox(width: 16),
+              ],
             ),
-            FilledButton(onPressed: _save, child: const Text('저장')),
-            const SizedBox(width: 16),
-          ],
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              TextField(
-                controller: _titleController,
-                decoration: const InputDecoration(labelText: '제목'),
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedFolderId,
-                items: [
-                  const DropdownMenuItem(value: '', child: Text('폴더 없음')),
-                  ...widget.folders.map(
-                    (folder) => DropdownMenuItem(
-                      value: folder.id,
-                      child: Text(folder.name),
-                    ),
-                  ),
-                ],
-                onChanged: (v) => setState(() => _selectedFolderId = v ?? ''),
-                decoration: const InputDecoration(labelText: '폴더'),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _tagsController,
-                decoration: const InputDecoration(labelText: '태그 (쉼표로 구분)'),
-              ),
-              const SizedBox(height: 24),
-              Row(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
                 children: [
-                  Text(
-                    '이미지 첨부',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(labelText: '제목'),
                   ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _pickImages,
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    tooltip: '이미지 추가',
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _selectedFolderId,
+                    isExpanded: true,
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text(
+                          '폴더 없음',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      ...widget.folders.map(
+                        (folder) => DropdownMenuItem(
+                          value: folder.id,
+                          child: Text(
+                            folder.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _selectedFolderId = v ?? ''),
+                    decoration: const InputDecoration(labelText: '폴더'),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (_imagePaths.isNotEmpty)
-                SizedBox(
-                  height: 90,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _imagePaths.length,
-                    itemBuilder: (context, idx) {
-                      final path = _imagePaths[idx];
-                      return Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        width: 90,
-                        height: 90,
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Theme.of(context).brightness == Brightness.dark
-                                        ? Colors.white12
-                                        : Colors.black12,
-                                    width: 1,
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _tagsController,
+                    decoration: const InputDecoration(labelText: '태그 (쉼표로 구분)'),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '이미지 첨부',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _pickImages,
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
+                        tooltip: '이미지 추가',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_imagePaths.isNotEmpty)
+                    SizedBox(
+                      height: 90,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _imagePaths.length,
+                        itemBuilder: (context, idx) {
+                          final path = _imagePaths[idx];
+                          return Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 90,
+                            height: 90,
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.white12
+                                            : Colors.black12,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: Image.file(
+                                      File(path),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return const Center(child: Icon(Icons.broken_image, size: 30));
+                                      },
+                                    ),
                                   ),
                                 ),
-                                clipBehavior: Clip.antiAlias,
-                                child: Image.file(
-                                  File(path),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Center(child: Icon(Icons.broken_image, size: 30));
-                                  },
+                                Positioned(
+                                  top: 2,
+                                  right: 2,
+                                  child: GestureDetector(
+                                    onTap: () => _removeImage(idx),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
                                 ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white.withOpacity(0.03)
+                            : Colors.black.withOpacity(0.02),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white12
+                              : Colors.black12,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '첨부된 이미지가 없습니다.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '프롬프트 내용',
+                          style: Theme.of(context).textTheme.titleMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          triggerInteractionHaptic(widget.settings);
+                          setState(
+                            () => _segments.add(
+                              PromptSegment(
+                                text: '',
+                                      colorValue: _currentDefaultTextColor,
                               ),
                             ),
-                            Positioned(
-                              top: 2,
-                              right: 2,
-                              child: GestureDetector(
-                                onTap: () => _removeImage(idx),
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle,
+                          );
+                        },
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                    ],
+                  ),
+                  ..._segments.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final seg = entry.value;
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  _ColorDot(
+                                    colorValue: seg.colorValue,
+                                    isSelected: true,
+                                    onTap: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      _pickMoreColors(idx);
+                                    },
                                   ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                    size: 14,
+                                  if (widget.favoriteColors.isNotEmpty) ...[
+                                    Container(
+                                      width: 1,
+                                      height: 20,
+                                      color: Colors.grey.withOpacity(0.3),
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                    ),
+                                    ...widget.favoriteColors.map(
+                                      (colorValue) => _ColorDot(
+                                        colorValue: colorValue,
+                                        isSelected: seg.colorValue == colorValue,
+                                        onTap: () {
+                                          triggerInteractionHaptic(widget.settings);
+                                          setState(
+                                            () => _segments[idx] = seg.copyWith(
+                                              colorValue: colorValue,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.palette_outlined,
+                                      size: 20,
+                                    ),
+                                    onPressed: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      _pickMoreColors(idx);
+                                    },
+                                    tooltip: '다른 색상 선택',
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(
+                                      widget.favoriteColors.contains(seg.colorValue)
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      size: 20,
+                                      color:
+                                          widget.favoriteColors.contains(
+                                            seg.colorValue,
+                                          )
+                                          ? Colors.amber
+                                          : null,
+                                    ),
+                                    onPressed: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      widget.onToggleFavorite(seg.colorValue);
+                                      setState(() {});
+                                    },
+                                    tooltip: '즐겨찾기 추가',
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      triggerInteractionHaptic(widget.settings);
+                                      setState(() {
+                                        if (_segments.length > 1) {
+                                          _segments.removeAt(idx);
+                                        }
+                                      });
+                                    },
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 20,
+                                    ),
+                                    tooltip: '삭제',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextFormField(
+                              initialValue: seg.text,
+                              maxLines: null,
+                              onChanged: (v) =>
+                                  _segments[idx] = _segments[idx].copyWith(text: v),
+                              decoration: const InputDecoration(
+                                hintText: '여기에 내용을 입력하세요...',
                               ),
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.03)
-                        : Colors.black.withOpacity(0.02),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.white12
-                          : Colors.black12,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '첨부된 이미지가 없습니다.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
                       ),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Text(
-                    '프롬프트 내용',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () {
-                      triggerInteractionHaptic(widget.settings);
-                      setState(
-                        () => _segments.add(
-                          PromptSegment(
-                            text: '',
-                            colorValue: AppPalette.ink.value,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add_circle_outline),
-                  ),
+                    );
+                  }),
                 ],
               ),
-              ..._segments.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final seg = entry.value;
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+            ),
+          ),
+          if (_isDragOver)
+            Positioned.fill(
+              child: Container(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.black87
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 16,
+                        )
+                      ],
                     ),
-                    child: Column(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _ColorDot(
-                                colorValue: seg.colorValue,
-                                isSelected: true,
-                                onTap: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  _pickMoreColors(idx);
-                                },
-                              ),
-                              if (widget.favoriteColors.isNotEmpty) ...[
-                                Container(
-                                  width: 1,
-                                  height: 20,
-                                  color: Colors.grey.withOpacity(0.3),
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                  ),
-                                ),
-                                ...widget.favoriteColors.map(
-                                  (colorValue) => _ColorDot(
-                                    colorValue: colorValue,
-                                    isSelected: seg.colorValue == colorValue,
-                                    onTap: () {
-                                      triggerInteractionHaptic(widget.settings);
-                                      setState(
-                                        () => _segments[idx] = seg.copyWith(
-                                          colorValue: colorValue,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.palette_outlined,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  _pickMoreColors(idx);
-                                },
-                                tooltip: '다른 색상 선택',
-                              ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: Icon(
-                                  widget.favoriteColors.contains(seg.colorValue)
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  size: 20,
-                                  color:
-                                      widget.favoriteColors.contains(
-                                        seg.colorValue,
-                                      )
-                                      ? Colors.amber
-                                      : null,
-                                ),
-                                onPressed: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  widget.onToggleFavorite(seg.colorValue);
-                                  setState(() {});
-                                },
-                                tooltip: '즐겨찾기 추가',
-                              ),
-                              IconButton(
-                                onPressed: () {
-                                  triggerInteractionHaptic(widget.settings);
-                                  setState(() {
-                                    if (_segments.length > 1) {
-                                      _segments.removeAt(idx);
-                                    }
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  size: 20,
-                                ),
-                                tooltip: '삭제',
-                              ),
-                            ],
-                          ),
-                        ),
-                        TextFormField(
-                          initialValue: seg.text,
-                          maxLines: null,
-                          onChanged: (v) =>
-                              _segments[idx] = _segments[idx].copyWith(text: v),
-                          decoration: const InputDecoration(
-                            hintText: '여기에 내용을 입력하세요...',
-                          ),
+                        Icon(Icons.add_photo_alternate_rounded, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 12),
+                        const Text(
+                          '여기에 이미지를 놓아 드롭 첨부',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                   ),
-                );
-              }),
-            ],
-          ),
-        ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -2642,6 +2948,7 @@ class SettingsSheet extends StatelessWidget {
     required this.onRestore,
     required this.onToggleHaptic,
     required this.onToggleFolderNavigation,
+    required this.onOpenShortcuts,
   });
 
   final AppSettings settings;
@@ -2653,6 +2960,7 @@ class SettingsSheet extends StatelessWidget {
   final VoidCallback onRestore;
   final ValueChanged<bool> onToggleHaptic;
   final ValueChanged<bool> onToggleFolderNavigation;
+  final VoidCallback onOpenShortcuts;
 
   @override
   Widget build(BuildContext context) {
@@ -2701,8 +3009,290 @@ class SettingsSheet extends StatelessWidget {
             title: const Text('백업 불러오기'),
             onTap: onRestore,
           ),
+          ListTile(
+            leading: const Icon(Icons.keyboard_alt_outlined),
+            title: const Text('단축키 설정'),
+            subtitle: const Text('앱 기능의 키보드 단축키를 변경합니다'),
+            onTap: onOpenShortcuts,
+          ),
         ],
       ),
+    );
+  }
+}
+
+class ShortcutSettingsDialog extends StatefulWidget {
+  const ShortcutSettingsDialog({
+    super.key,
+    required this.settings,
+    required this.onChanged,
+  });
+
+  final AppSettings settings;
+  final ValueChanged<AppSettings> onChanged;
+
+  @override
+  State<ShortcutSettingsDialog> createState() => _ShortcutSettingsDialogState();
+}
+
+class _ShortcutSettingsDialogState extends State<ShortcutSettingsDialog> {
+  late Map<String, AppShortcut> _shortcuts;
+
+  @override
+  void initState() {
+    super.initState();
+    _shortcuts = {
+      for (final action in AppShortcutAction.values)
+        action.id: widget.settings.shortcuts[action.id] ??
+            AppShortcut.fromAction(action),
+    };
+  }
+
+  AppShortcut _shortcutFor(AppShortcutAction action) {
+    return _shortcuts[action.id] ?? AppShortcut.fromAction(action);
+  }
+
+  void _updateShortcut(AppShortcutAction action, AppShortcut shortcut) {
+    setState(() {
+      _shortcuts[action.id] = shortcut;
+    });
+    widget.onChanged(widget.settings.copyWith(shortcuts: Map.from(_shortcuts)));
+  }
+
+  Future<void> _editShortcut(AppShortcutAction action) async {
+    final shortcut = await showDialog<AppShortcut>(
+      context: context,
+      builder: (context) => _ShortcutCaptureDialog(
+        action: action,
+        current: _shortcutFor(action),
+      ),
+    );
+    if (!mounted || shortcut == null) return;
+
+    final conflict = AppShortcutAction.values.where((other) {
+      return other != action && _shortcutFor(other) == shortcut;
+    }).firstOrNull;
+    if (conflict != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('단축키가 이미 사용 중입니다'),
+          content: Text('${conflict.title} 기능이 같은 단축키를 사용하고 있습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    _updateShortcut(action, shortcut);
+  }
+
+  String _shortcutLabel(AppShortcut shortcut) {
+    final modifiers = <String>[];
+    if (shortcut.control) modifiers.add('Ctrl');
+    if (shortcut.meta) modifiers.add('⌘');
+    if (shortcut.alt) modifiers.add('Alt');
+    if (shortcut.shift) modifiers.add('Shift');
+    var keyLabel = shortcut.key.keyLabel;
+    if (keyLabel.trim().isEmpty) keyLabel = shortcut.key.debugName ?? 'Key';
+    return [...modifiers, keyLabel.toUpperCase()].join(' + ');
+  }
+
+  IconData _shortcutIcon(AppShortcutAction action) {
+    switch (action) {
+      case AppShortcutAction.newPrompt:
+        return Icons.add_box_outlined;
+      case AppShortcutAction.search:
+        return Icons.search_rounded;
+      case AppShortcutAction.settings:
+        return Icons.settings_outlined;
+      case AppShortcutAction.lock:
+        return Icons.lock_outline_rounded;
+      case AppShortcutAction.closeSearch:
+        return Icons.keyboard_return_rounded;
+      case AppShortcutAction.editPrompt:
+        return Icons.edit_outlined;
+      case AppShortcutAction.copyPrompt:
+        return Icons.copy_outlined;
+      case AppShortcutAction.deletePrompt:
+        return Icons.delete_outline_rounded;
+      case AppShortcutAction.duplicatePrompt:
+        return Icons.control_point_duplicate_outlined;
+      case AppShortcutAction.togglePin:
+        return Icons.push_pin_outlined;
+      case AppShortcutAction.promptActions:
+        return Icons.more_horiz_rounded;
+    }
+  }
+
+  void _resetDefaults() {
+    setState(() {
+      _shortcuts = {
+        for (final action in AppShortcutAction.values)
+          action.id: AppShortcut.fromAction(action),
+      };
+    });
+    widget.onChanged(widget.settings.copyWith(shortcuts: Map.from(_shortcuts)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.keyboard_alt_rounded, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          const Text('단축키 설정'),
+        ],
+      ),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '기능을 선택한 뒤 원하는 키 조합을 누르세요.',
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              ...AppShortcutAction.values.map((action) {
+                final shortcut = _shortcutFor(action);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant.withOpacity(0.4),
+                      ),
+                    ),
+                    leading: Icon(_shortcutIcon(action), color: colorScheme.primary),
+                    title: Text(action.title),
+                    subtitle: Text(action.description),
+                    trailing: OutlinedButton(
+                      onPressed: () => _editShortcut(action),
+                      child: Text(_shortcutLabel(shortcut)),
+                    ),
+                    onTap: () => _editShortcut(action),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: _resetDefaults,
+          icon: const Icon(Icons.restore_rounded),
+          label: const Text('기본값 복원'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('완료'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShortcutCaptureDialog extends StatefulWidget {
+  const _ShortcutCaptureDialog({
+    required this.action,
+    required this.current,
+  });
+
+  final AppShortcutAction action;
+  final AppShortcut current;
+
+  @override
+  State<_ShortcutCaptureDialog> createState() => _ShortcutCaptureDialogState();
+}
+
+class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.handled;
+    final key = event.logicalKey;
+    final isModifier = key == LogicalKeyboardKey.controlLeft ||
+        key == LogicalKeyboardKey.controlRight ||
+        key == LogicalKeyboardKey.shiftLeft ||
+        key == LogicalKeyboardKey.shiftRight ||
+        key == LogicalKeyboardKey.altLeft ||
+        key == LogicalKeyboardKey.altRight ||
+        key == LogicalKeyboardKey.metaLeft ||
+        key == LogicalKeyboardKey.metaRight;
+    if (isModifier) return KeyEventResult.handled;
+
+    final keyboard = HardwareKeyboard.instance;
+    Navigator.pop(
+      context,
+      AppShortcut(
+        key: key,
+        control: keyboard.isControlPressed,
+        alt: keyboard.isAltPressed,
+        shift: keyboard.isShiftPressed,
+        meta: keyboard.isMetaPressed,
+      ),
+    );
+    return KeyEventResult.handled;
+  }
+
+  String _currentLabel() {
+    final modifiers = <String>[];
+    if (widget.current.control) modifiers.add('Ctrl');
+    if (widget.current.meta) modifiers.add('⌘');
+    if (widget.current.alt) modifiers.add('Alt');
+    if (widget.current.shift) modifiers.add('Shift');
+    var keyLabel = widget.current.key.keyLabel;
+    if (keyLabel.trim().isEmpty) {
+      keyLabel = widget.current.key.debugName ?? 'Key';
+    }
+    return [...modifiers, keyLabel.toUpperCase()].join(' + ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.action.title} 단축키 변경'),
+      content: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.keyboard_rounded, size: 36),
+              const SizedBox(height: 12),
+              const Text('원하는 키 조합을 누르세요'),
+              const SizedBox(height: 8),
+              Text(
+                '현재: ${_currentLabel()}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('취소'),
+        ),
+      ],
     );
   }
 }
@@ -3066,6 +3656,137 @@ class _PinButtonState extends State<_PinButton> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ImageViewerDialog extends StatefulWidget {
+  const _ImageViewerDialog({required this.imagePaths});
+  final List<String> imagePaths;
+
+  @override
+  State<_ImageViewerDialog> createState() => _ImageViewerDialogState();
+}
+
+class _ImageViewerDialogState extends State<_ImageViewerDialog> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog.fullscreen(
+      backgroundColor: Colors.black,
+      child: Stack(
+        children: [
+          // Photo viewer
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imagePaths.length,
+              onPageChanged: (index) {
+                setState(() {
+                  _currentIndex = index;
+                });
+              },
+              itemBuilder: (context, index) {
+                return InteractiveViewer(
+                  maxScale: 4.0,
+                  child: Center(
+                    child: Image.file(
+                      File(widget.imagePaths[index]),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, size: 48, color: Colors.white70),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Upper Controls (Close & Index)
+          Positioned(
+            top: 24,
+            left: 24,
+            right: 24,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_currentIndex + 1} / ${widget.imagePaths.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+
+          // Left Arrow
+          if (_currentIndex > 0)
+            Positioned(
+              left: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black38,
+                    padding: const EdgeInsets.all(12),
+                  ),
+                  icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 24),
+                  onPressed: () {
+                    _pageController.previousPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // Right Arrow
+          if (_currentIndex < widget.imagePaths.length - 1)
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: IconButton(
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black38,
+                    padding: const EdgeInsets.all(12),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 24),
+                  onPressed: () {
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

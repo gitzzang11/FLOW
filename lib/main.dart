@@ -72,11 +72,14 @@ class _FlowAppState extends State<FlowApp> {
     if (_store.prompts.isEmpty) {
       final folderId = _store.folders.first.id;
       final now = DateTime.now();
+      final defaultTextColor = _store.settings.darkMode
+          ? Colors.white.value
+          : Colors.black.value;
       _store.prompts.addAll([
         PromptItem(
           id: PromptStore.newId(),
           title: '랜딩 페이지 카피라이팅',
-          titleColorValue: AppPalette.ink.value,
+          titleColorValue: defaultTextColor,
           folderId: folderId,
           tags: ['마케팅', '카피'],
           createdAt: now,
@@ -84,21 +87,21 @@ class _FlowAppState extends State<FlowApp> {
           segments: [
             PromptSegment(
               text: '다음 제품의 전환율이 높은 랜딩 페이지 카피를 작성해줘. ',
-              colorValue: AppPalette.ink.value,
+              colorValue: defaultTextColor,
             ),
             PromptSegment(text: '[제품 이름]', colorValue: AppPalette.coral.value),
-            PromptSegment(text: ' 대상 ', colorValue: AppPalette.ink.value),
+            PromptSegment(text: ' 대상 ', colorValue: defaultTextColor),
             PromptSegment(text: '[타깃 고객]', colorValue: AppPalette.sky.value),
             PromptSegment(
               text: ' 을 위한 핵심 문구를 만들어줘.',
-              colorValue: AppPalette.ink.value,
+              colorValue: defaultTextColor,
             ),
           ],
         ),
         PromptItem(
           id: PromptStore.newId(),
           title: '회의록 요약 프롬프트',
-          titleColorValue: AppPalette.ink.value,
+          titleColorValue: defaultTextColor,
           folderId: '',
           tags: ['업무', '요약'],
           createdAt: now,
@@ -106,12 +109,12 @@ class _FlowAppState extends State<FlowApp> {
           segments: [
             PromptSegment(
               text: '다음 회의록을 액션 아이템, 담당자, 마감 일정 중심으로 요약해줘. ',
-              colorValue: AppPalette.ink.value,
+              colorValue: defaultTextColor,
             ),
             PromptSegment(text: '[회의 내용]', colorValue: AppPalette.amber.value),
             PromptSegment(
               text: ' 을 바탕으로 고객 공유용 문장도 함께 정리해줘.',
-              colorValue: AppPalette.ink.value,
+              colorValue: defaultTextColor,
             ),
           ],
         ),

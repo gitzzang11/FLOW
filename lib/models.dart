@@ -12,6 +12,160 @@ enum AppPalette {
   final int value;
 }
 
+enum AppShortcutAction {
+  newPrompt(
+    'new_prompt',
+    '새 프롬프트',
+    '새 프롬프트 편집기를 엽니다',
+    LogicalKeyboardKey.keyN,
+    control: true,
+  ),
+  search(
+    'search',
+    '검색',
+    '프롬프트 검색을 시작합니다',
+    LogicalKeyboardKey.keyF,
+    control: true,
+  ),
+  settings(
+    'settings',
+    '설정',
+    '설정 메뉴를 엽니다',
+    LogicalKeyboardKey.comma,
+    control: true,
+  ),
+  lock(
+    'lock',
+    '지금 잠금',
+    '앱을 즉시 잠급니다',
+    LogicalKeyboardKey.keyL,
+    control: true,
+  ),
+  closeSearch(
+    'close_search',
+    '검색 닫기 / 포커스 해제',
+    '검색을 닫거나 현재 입력 포커스를 해제합니다',
+    LogicalKeyboardKey.escape,
+  ),
+  editPrompt(
+    'edit_prompt',
+    '프롬프트 편집',
+    '선택한 프롬프트를 편집합니다',
+    LogicalKeyboardKey.enter,
+  ),
+  copyPrompt(
+    'copy_prompt',
+    '프롬프트 복사',
+    '선택한 프롬프트를 클립보드에 복사합니다',
+    LogicalKeyboardKey.space,
+  ),
+  deletePrompt(
+    'delete_prompt',
+    '프롬프트 삭제',
+    '선택한 프롬프트를 삭제합니다',
+    LogicalKeyboardKey.delete,
+  ),
+  duplicatePrompt(
+    'duplicate_prompt',
+    '프롬프트 복제',
+    '선택한 프롬프트를 복제합니다',
+    LogicalKeyboardKey.keyD,
+    control: true,
+  ),
+  togglePin(
+    'toggle_pin',
+    '프롬프트 고정',
+    '선택한 프롬프트를 고정하거나 해제합니다',
+    LogicalKeyboardKey.keyP,
+  ),
+  promptActions(
+    'prompt_actions',
+    '프롬프트 메뉴',
+    '선택한 프롬프트의 추가 메뉴를 엽니다',
+    LogicalKeyboardKey.keyM,
+    shift: true,
+  );
+
+  const AppShortcutAction(
+    this.id,
+    this.title,
+    this.description,
+    this.defaultKey, {
+    this.control = false,
+    this.alt = false,
+    this.shift = false,
+    this.meta = false,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final LogicalKeyboardKey defaultKey;
+  final bool control;
+  final bool alt;
+  final bool shift;
+  final bool meta;
+}
+
+class AppShortcut {
+  const AppShortcut({
+    required this.key,
+    this.control = false,
+    this.alt = false,
+    this.shift = false,
+    this.meta = false,
+  });
+
+  final LogicalKeyboardKey key;
+  final bool control;
+  final bool alt;
+  final bool shift;
+  final bool meta;
+
+  factory AppShortcut.fromAction(AppShortcutAction action) => AppShortcut(
+        key: action.defaultKey,
+        control: action.control,
+        alt: action.alt,
+        shift: action.shift,
+        meta: action.meta,
+      );
+
+  factory AppShortcut.fromJson(Map<String, dynamic> json) {
+    final keyId = (json['keyId'] as num?)?.toInt();
+    final key = keyId == null
+        ? LogicalKeyboardKey.keyN
+        : LogicalKeyboardKey.findKeyByKeyId(keyId) ?? LogicalKeyboardKey.keyN;
+    return AppShortcut(
+      key: key,
+      control: json['control'] as bool? ?? false,
+      alt: json['alt'] as bool? ?? false,
+      shift: json['shift'] as bool? ?? false,
+      meta: json['meta'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'keyId': key.keyId,
+        'control': control,
+        'alt': alt,
+        'shift': shift,
+        'meta': meta,
+      };
+
+  @override
+  bool operator ==(Object other) {
+    return other is AppShortcut &&
+        other.key.keyId == key.keyId &&
+        other.control == control &&
+        other.alt == alt &&
+        other.shift == shift &&
+        other.meta == meta;
+  }
+
+  @override
+  int get hashCode => Object.hash(key.keyId, control, alt, shift, meta);
+}
+
 enum PromptSortMode {
   newest('newest'),
   oldest('oldest'),
@@ -194,7 +348,8 @@ class AppSettings {
     this.customPromptOrder = const [],
     this.hapticEnabled = true,
     this.showFolderNavigation = true,
-  });
+    Map<String, AppShortcut>? shortcuts = const {},
+  }) : _shortcutBindings = shortcuts;
 
   final bool darkMode;
   final bool lockEnabled;
@@ -205,6 +360,11 @@ class AppSettings {
   final List<String> customPromptOrder;
   final bool hapticEnabled;
   final bool showFolderNavigation;
+  // Nullable backing storage keeps settings created before this field was
+  // introduced (for example during hot reload) compatible with new code.
+  final Map<String, AppShortcut>? _shortcutBindings;
+
+  Map<String, AppShortcut> get shortcuts => _shortcutBindings ?? const {};
 
   AppSettings copyWith({
     bool? darkMode,
@@ -216,6 +376,7 @@ class AppSettings {
     List<String>? customPromptOrder,
     bool? hapticEnabled,
     bool? showFolderNavigation,
+    Map<String, AppShortcut>? shortcuts,
   }) {
     return AppSettings(
       darkMode: darkMode ?? this.darkMode,
@@ -227,6 +388,7 @@ class AppSettings {
       customPromptOrder: customPromptOrder ?? this.customPromptOrder,
       hapticEnabled: hapticEnabled ?? this.hapticEnabled,
       showFolderNavigation: showFolderNavigation ?? this.showFolderNavigation,
+      shortcuts: shortcuts ?? this.shortcuts,
     );
   }
 
@@ -246,6 +408,12 @@ class AppSettings {
         .cast<String>(),
     hapticEnabled: json['hapticEnabled'] as bool? ?? true,
     showFolderNavigation: json['showFolderNavigation'] as bool? ?? true,
+    shortcuts: (json['shortcuts'] as Map<dynamic, dynamic>? ?? {}).map(
+      (key, value) => MapEntry(
+        key.toString(),
+        AppShortcut.fromJson((value as Map<dynamic, dynamic>).cast<String, dynamic>()),
+      ),
+    ),
   );
 
   Map<String, dynamic> toJson() => {
@@ -258,6 +426,7 @@ class AppSettings {
     'customPromptOrder': customPromptOrder,
     'hapticEnabled': hapticEnabled,
     'showFolderNavigation': showFolderNavigation,
+    'shortcuts': shortcuts.map((key, value) => MapEntry(key, value.toJson())),
   };
 }
 
