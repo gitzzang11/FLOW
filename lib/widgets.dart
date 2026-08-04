@@ -1347,9 +1347,30 @@ class _RightSideEditorState extends State<RightSideEditor> {
     }
   }
 
+  bool _matchesCloseShortcut(KeyEvent event) {
+    final shortcut = widget.settings.shortcuts['close_search'] ??
+        AppShortcut.fromAction(AppShortcutAction.closeSearch);
+    final keyboard = HardwareKeyboard.instance;
+    return event.logicalKey == shortcut.key &&
+        keyboard.isControlPressed == shortcut.control &&
+        keyboard.isAltPressed == shortcut.alt &&
+        keyboard.isShiftPressed == shortcut.shift &&
+        keyboard.isMetaPressed == shortcut.meta;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return DropTarget(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent && _matchesCloseShortcut(event)) {
+          triggerInteractionHaptic(widget.settings);
+          widget.onClose();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: DropTarget(
       onDragEntered: (details) => setState(() => _isDragOver = true),
       onDragExited: (details) => setState(() => _isDragOver = false),
       onDragDone: (details) async {
@@ -1728,6 +1749,7 @@ class _RightSideEditorState extends State<RightSideEditor> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -3097,6 +3119,9 @@ class _ShortcutSettingsDialogState extends State<ShortcutSettingsDialog> {
     if (shortcut.meta) modifiers.add('⌘');
     if (shortcut.alt) modifiers.add('Alt');
     if (shortcut.shift) modifiers.add('Shift');
+    if (shortcut.key == LogicalKeyboardKey.escape) {
+      return [...modifiers, 'Esc'].join(' + ');
+    }
     var keyLabel = shortcut.key.keyLabel;
     if (keyLabel.trim().isEmpty) keyLabel = shortcut.key.debugName ?? 'Key';
     return [...modifiers, keyLabel.toUpperCase()].join(' + ');
@@ -3249,6 +3274,9 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
     if (widget.current.meta) modifiers.add('⌘');
     if (widget.current.alt) modifiers.add('Alt');
     if (widget.current.shift) modifiers.add('Shift');
+    if (widget.current.key == LogicalKeyboardKey.escape) {
+      return [...modifiers, 'Esc'].join(' + ');
+    }
     var keyLabel = widget.current.key.keyLabel;
     if (keyLabel.trim().isEmpty) {
       keyLabel = widget.current.key.debugName ?? 'Key';

@@ -43,8 +43,8 @@ enum AppShortcutAction {
   ),
   closeSearch(
     'close_search',
-    '검색 닫기 / 포커스 해제',
-    '검색을 닫거나 현재 입력 포커스를 해제합니다',
+    '닫기 / 나가기',
+    '검색·편집·작성 화면을 닫습니다. 닫을 화면이 없으면 입력 포커스를 해제합니다',
     LogicalKeyboardKey.escape,
   ),
   editPrompt(
