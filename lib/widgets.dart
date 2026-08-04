@@ -1347,30 +1347,9 @@ class _RightSideEditorState extends State<RightSideEditor> {
     }
   }
 
-  bool _matchesCloseShortcut(KeyEvent event) {
-    final shortcut = widget.settings.shortcuts['close_search'] ??
-        AppShortcut.fromAction(AppShortcutAction.closeSearch);
-    final keyboard = HardwareKeyboard.instance;
-    return event.logicalKey == shortcut.key &&
-        keyboard.isControlPressed == shortcut.control &&
-        keyboard.isAltPressed == shortcut.alt &&
-        keyboard.isShiftPressed == shortcut.shift &&
-        keyboard.isMetaPressed == shortcut.meta;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && _matchesCloseShortcut(event)) {
-          triggerInteractionHaptic(widget.settings);
-          widget.onClose();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: DropTarget(
+    return DropTarget(
       onDragEntered: (details) => setState(() => _isDragOver = true),
       onDragExited: (details) => setState(() => _isDragOver = false),
       onDragDone: (details) async {
@@ -1749,7 +1728,6 @@ class _RightSideEditorState extends State<RightSideEditor> {
               ),
             ),
         ],
-      ),
       ),
     );
   }

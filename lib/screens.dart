@@ -228,7 +228,11 @@ class _FlowShellState extends State<FlowShell> {
         _activatorFor(AppShortcutAction.settings): _openSettings,
         _activatorFor(AppShortcutAction.lock): _lockNowFromKeyboard,
         _activatorFor(AppShortcutAction.closeSearch): () {
-          if (_isSearching ||
+          if (_isEditorOpen) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _isEditorOpen) _closeEditor();
+            });
+          } else if (_isSearching ||
               _searchQuery.isNotEmpty ||
               _selectedTags.isNotEmpty) {
             _closeSearch();
@@ -352,7 +356,7 @@ class _FlowShellState extends State<FlowShell> {
   }
 
   Future<void> _showFolderDialog({FolderItem? folder}) async {
-    final controller = TextEditingController(text: folder?.name ?? '');
+    var folderName = folder?.name ?? '';
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -385,11 +389,12 @@ class _FlowShellState extends State<FlowShell> {
             Text(folder == null ? '새 폴더' : '폴더 이름 변경'),
           ],
         ),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
+          initialValue: folderName,
           autofocus: true,
           textInputAction: TextInputAction.done,
-          onSubmitted: (value) {
+          onChanged: (value) => folderName = value,
+          onFieldSubmitted: (value) {
             if (value.trim().isNotEmpty) Navigator.pop(ctx, value.trim());
           },
           decoration: InputDecoration(
@@ -422,7 +427,7 @@ class _FlowShellState extends State<FlowShell> {
           FilledButton(
             onPressed: () {
               triggerInteractionHaptic(widget.store.settings);
-              final name = controller.text.trim();
+              final name = folderName.trim();
               if (name.isNotEmpty) Navigator.pop(ctx, name);
             },
             child: Text(folder == null ? '폴더 만들기' : '저장'),
@@ -430,7 +435,6 @@ class _FlowShellState extends State<FlowShell> {
         ],
       ),
     );
-    controller.dispose();
 
     if (result != null && result.isNotEmpty) {
       setState(() {
@@ -1360,46 +1364,53 @@ class _FlowShellState extends State<FlowShell> {
                 ),
               ),
               child: ClipRect(
-                child: _isEditorOpen
-                    ? RightSideEditor(
-                        key: ValueKey(_activePromptForEdit?.id ?? 'create'),
-                        folders: widget.store.folders,
-                        prompt: _activePromptForEdit,
-                        initialFolderId: _activePromptForEdit == null
-                            ? _selectedFolderId
-                            : _activePromptForEdit!.folderId,
-                        favoriteColors: widget.store.settings.favoriteColors,
-                        onToggleFavorite: (color) {
-                          final favorites = List<int>.from(
-                            widget.store.settings.favoriteColors,
-                          );
-                          if (favorites.contains(color)) {
-                            favorites.remove(color);
-                          } else {
-                            favorites.add(color);
-                          }
-                          widget.store.settings = widget.store.settings.copyWith(
-                            favoriteColors: favorites,
-                          );
-                          widget.onStoreChanged();
-                        },
-                        settings: widget.store.settings,
-                        onSave: (result) async {
-                          setState(() {
-                            final idx = widget.store.prompts.indexWhere((p) => p.id == result.id);
-                            if (idx >= 0) {
-                              widget.store.prompts[idx] = result;
+                // Keep the editor laid out at its final width while the
+                // container animates, then reveal it through the clip.
+                child: OverflowBox(
+                  alignment: Alignment.centerLeft,
+                  minWidth: _isEditorOpen ? 420.0 : 0.0,
+                  maxWidth: _isEditorOpen ? 420.0 : 0.0,
+                  child: _isEditorOpen
+                      ? RightSideEditor(
+                          key: ValueKey(_activePromptForEdit?.id ?? 'create'),
+                          folders: widget.store.folders,
+                          prompt: _activePromptForEdit,
+                          initialFolderId: _activePromptForEdit == null
+                              ? _selectedFolderId
+                              : _activePromptForEdit!.folderId,
+                          favoriteColors: widget.store.settings.favoriteColors,
+                          onToggleFavorite: (color) {
+                            final favorites = List<int>.from(
+                              widget.store.settings.favoriteColors,
+                            );
+                            if (favorites.contains(color)) {
+                              favorites.remove(color);
                             } else {
-                              widget.store.prompts.add(result);
+                              favorites.add(color);
                             }
-                            _activePromptForEdit = null;
-                            _isEditorOpen = false;
-                          });
-                          await widget.onStoreChanged();
-                        },
-                        onClose: _closeEditor,
-                      )
-                    : const SizedBox.shrink(),
+                            widget.store.settings = widget.store.settings.copyWith(
+                              favoriteColors: favorites,
+                            );
+                            widget.onStoreChanged();
+                          },
+                          settings: widget.store.settings,
+                          onSave: (result) async {
+                            setState(() {
+                              final idx = widget.store.prompts.indexWhere((p) => p.id == result.id);
+                              if (idx >= 0) {
+                                widget.store.prompts[idx] = result;
+                              } else {
+                                widget.store.prompts.add(result);
+                              }
+                              _activePromptForEdit = null;
+                              _isEditorOpen = false;
+                            });
+                            await widget.onStoreChanged();
+                          },
+                          onClose: _closeEditor,
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ),
             ),
           ],
