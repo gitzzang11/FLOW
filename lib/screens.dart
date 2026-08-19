@@ -885,7 +885,7 @@ class _FlowShellState extends State<FlowShell> {
     final prompts = widget.store.prompts;
 
     return SizedBox(
-      height: 110,
+      height: 94,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         scrollDirection: Axis.horizontal,
@@ -895,6 +895,7 @@ class _FlowShellState extends State<FlowShell> {
             return FolderCard(
               name: '전체',
               promptCount: prompts.length,
+              icon: Icons.all_inbox_rounded,
               isSelected: _selectedFolderId.isEmpty,
               onTap: () {
                 triggerInteractionHaptic(widget.store.settings);

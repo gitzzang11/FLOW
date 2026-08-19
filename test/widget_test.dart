@@ -86,6 +86,35 @@ void main() {
     expect(find.byType(TextField), findsNothing);
   });
 
+  testWidgets('Folder shortcuts handle long names and remain tappable', (
+    tester,
+  ) async {
+    var tapped = false;
+    const folderName = '브랜드 캠페인 콘텐츠 제작용 프롬프트 모음';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: FolderCard(
+              name: folderName,
+              promptCount: 12,
+              isSelected: true,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(folderName), findsOneWidget);
+
+    await tester.tap(find.byType(FolderCard));
+    expect(tapped, isTrue);
+  });
+
   testWidgets('Flow app opens settings sheet', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
     tester.view.devicePixelRatio = 1.0;

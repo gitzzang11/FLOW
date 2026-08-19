@@ -3308,12 +3308,14 @@ class FolderCard extends StatefulWidget {
     super.key,
     required this.name,
     required this.promptCount,
+    this.icon = Icons.folder_rounded,
     required this.isSelected,
     required this.onTap,
   });
 
   final String name;
   final int promptCount;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -3336,24 +3338,29 @@ class _FolderCardState extends State<FolderCard> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Cover color of the folder
-    final coverColor = isDark
-        ? const Color(0xFF2C2C2E)
-        : const Color(0xFFE5E5EA);
-    final borderColor = widget.isSelected
-        ? scheme.primary
+    final isActive = widget.isSelected;
+    final cardColor = isActive
+        ? scheme.primary.withValues(alpha: isDark ? 0.18 : 0.09)
         : (isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.black.withValues(alpha: 0.1));
-    final labelColor = isDark ? Colors.white : Colors.black;
-    final countColor = isDark ? Colors.white60 : Colors.black54;
+              ? Colors.white.withValues(alpha: 0.045)
+              : Colors.white.withValues(alpha: 0.78));
+    final borderColor = isActive
+        ? scheme.primary.withValues(alpha: isDark ? 0.8 : 0.62)
+        : scheme.outlineVariant.withValues(alpha: isDark ? 0.28 : 0.55);
+    final iconBackground = isActive
+        ? scheme.primary
+        : scheme.primary.withValues(alpha: isDark ? 0.18 : 0.11);
+    final iconColor = isActive ? scheme.onPrimary : scheme.primary;
+    final labelColor = scheme.onSurface;
+    final countColor = scheme.onSurfaceVariant;
 
     return Focus(
       focusNode: _focusNode,
       onFocusChange: (focused) => setState(() => _isFocused = focused),
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.space)) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.space)) {
           widget.onTap();
           return KeyEventResult.handled;
         }
@@ -3364,141 +3371,99 @@ class _FolderCardState extends State<FolderCard> {
         onExit: (_) => setState(() => _isHovered = false),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            transform: Matrix4.identity()
-              ..scale((_isHovered || _isFocused) ? 1.04 : 1.0),
-            width: 110,
-            height: 90,
-            margin: const EdgeInsets.only(right: 12),
-            child: Stack(
-              children: [
-                // Back paper tab sticking out
-                Positioned(
-                  top: 0,
-                  left: 10,
-                  right: 10,
-                  child: Container(
-                    height: 30,
+          child: Semantics(
+            button: true,
+            label: '${widget.name}, ${widget.promptCount}개 프롬프트',
+            selected: isActive,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: 154,
+              height: 76,
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _isFocused ? scheme.primary : borderColor,
+                  width: _isFocused ? 2 : (isActive ? 1.5 : 1),
+                ),
+                boxShadow: (_isHovered || isActive)
+                    ? [
+                        BoxShadow(
+                          color: scheme.primary.withValues(
+                            alpha: isDark ? 0.12 : 0.08,
+                          ),
+                          blurRadius: isActive ? 12 : 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.9)
-                          : Colors.grey[300],
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(6),
-                        topRight: Radius.circular(6),
-                      ),
+                      color: iconBackground,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(widget.icon, color: iconColor, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: labelColor,
+                            fontSize: 13,
+                            fontWeight: isActive
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${widget.promptCount}개 프롬프트',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: countColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            height: 1.1,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                // Front cover
-                Positioned.fill(
-                  top: 8,
-                  child: CustomPaint(
-                    painter: FolderFrontPainter(
-                      color: coverColor,
-                      borderColor: _isFocused
-                          ? scheme.primary
-                          : (_isHovered
-                              ? scheme.primary.withOpacity(0.6)
-                              : borderColor),
-                      borderWidth: (_isFocused || widget.isSelected) ? 2.5 : (_isHovered ? 1.5 : 1.0),
+                  if (isActive) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: scheme.primary,
+                      size: 18,
                     ),
-                  ),
-                ),
-                // Prompt count top-left of front cover
-                Positioned(
-                  top: 30, // folder body starts at top 8 + painter offset 20 = 28
-                  left: 12,
-                  child: Text(
-                    widget.promptCount.toString(),
-                    style: TextStyle(
-                      color: countColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                // Folder name bottom-left of front cover
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 10,
-                  child: Text(
-                    widget.name,
-                    style: TextStyle(
-                      color: labelColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+                  ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
-  }
-}
-
-class FolderFrontPainter extends CustomPainter {
-  FolderFrontPainter({
-    required this.color,
-    this.borderColor,
-    this.borderWidth = 1.5,
-  });
-
-  final Color color;
-  final Color? borderColor;
-  final double borderWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final path = Path();
-    const double r = 8.0;
-
-    // Drawing folder cover with tab on left (y = 10), lower section on right (y = 20)
-    path.moveTo(0, 10 + r);
-    path.quadraticBezierTo(0, 10, r, 10);
-    path.lineTo(w * 0.45 - r, 10);
-    path.quadraticBezierTo(w * 0.45, 10, w * 0.48, 10 + r * 0.5);
-    path.lineTo(w * 0.52, 20 - r * 0.5);
-    path.quadraticBezierTo(w * 0.54, 20, w * 0.54 + r, 20);
-    path.lineTo(w - r, 20);
-    path.quadraticBezierTo(w, 20, w, 20 + r);
-    path.lineTo(w, h - r);
-    path.quadraticBezierTo(w, h, w - r, h);
-    path.lineTo(r, h);
-    path.quadraticBezierTo(0, h, 0, h - r);
-    path.close();
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(path, paint);
-
-    if (borderColor != null) {
-      final borderPaint = Paint()
-        ..color = borderColor!
-        ..strokeWidth = borderWidth
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(path, borderPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant FolderFrontPainter oldDelegate) {
-    return oldDelegate.color != color ||
-        oldDelegate.borderColor != borderColor ||
-        oldDelegate.borderWidth != borderWidth;
   }
 }
 
