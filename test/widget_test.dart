@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flow/main.dart';
+import 'package:flow/widgets.dart';
 
 void main() {
   testWidgets('Flow app renders adaptive fixed-card grid layout', (
@@ -35,7 +36,25 @@ void main() {
     final delegate =
         sliverGrid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, equals(4));
-    expect(delegate.mainAxisExtent, equals(248));
+    expect(delegate.mainAxisExtent, equals(246));
+
+    expect(find.byTooltip('폴더바 닫기'), findsOneWidget);
+    await tester.tap(find.byTooltip('폴더바 닫기'));
+    await tester.pumpAndSettle();
+
+    final closedGrid = tester.widget<SliverGrid>(find.byType(SliverGrid).first);
+    final closedDelegate =
+        closedGrid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(closedDelegate.crossAxisCount, equals(5));
+    expect(find.byTooltip('폴더바 열기'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('폴더바 열기'));
+    await tester.pumpAndSettle();
+
+    final reopenedGrid = tester.widget<SliverGrid>(find.byType(SliverGrid).first);
+    final reopenedDelegate =
+        reopenedGrid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(reopenedDelegate.crossAxisCount, equals(4));
   });
 
   testWidgets('Flow app supports desktop search shortcut', (tester) async {
@@ -115,11 +134,23 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_rounded));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(SwitchListTile).at(2));
+    await tester.tap(
+      find.ancestor(
+        of: find.text('앱 잠금'),
+        matching: find.byType(SwitchListTile),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextField).last, '1234');
-    await tester.tap(find.byType(FilledButton).last);
+    final pinField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextField),
+    );
+    expect(pinField, findsOneWidget);
+    await tester.enterText(pinField, '1234');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, '확인'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);

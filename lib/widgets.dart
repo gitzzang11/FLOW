@@ -3537,36 +3537,158 @@ class PinPad extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
-      child: GridView.count(
-        crossAxisCount: 3,
-        shrinkWrap: true,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        physics: const NeverScrollableScrollPhysics(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 1; i <= 9; i++)
-            _PinButton(
-              label: i.toString(),
-              onTap: () => _onKeyPress(i.toString()),
-              enabled: enabled,
-            ),
-          _PinButton(
-            label: 'C',
-            onTap: _onClear,
-            enabled: enabled,
-            isSecondary: true,
+          Row(
+            children: [
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '1',
+                    onTap: () => _onKeyPress('1'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '2',
+                    onTap: () => _onKeyPress('2'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '3',
+                    onTap: () => _onKeyPress('3'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+            ],
           ),
-          _PinButton(
-            label: '0',
-            onTap: () => _onKeyPress('0'),
-            enabled: enabled,
-            isSecondary: false,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '4',
+                    onTap: () => _onKeyPress('4'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '5',
+                    onTap: () => _onKeyPress('5'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '6',
+                    onTap: () => _onKeyPress('6'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+            ],
           ),
-          _PinButton(
-            icon: Icons.backspace_outlined,
-            onTap: _onBackspace,
-            enabled: enabled,
-            isSecondary: true,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '7',
+                    onTap: () => _onKeyPress('7'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '8',
+                    onTap: () => _onKeyPress('8'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '9',
+                    onTap: () => _onKeyPress('9'),
+                    enabled: enabled,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: 'C',
+                    onTap: _onClear,
+                    enabled: enabled,
+                    isSecondary: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    label: '0',
+                    onTap: () => _onKeyPress('0'),
+                    enabled: enabled,
+                    isSecondary: false,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: _PinButton(
+                    icon: Icons.backspace_outlined,
+                    onTap: _onBackspace,
+                    enabled: enabled,
+                    isSecondary: true,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

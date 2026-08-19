@@ -42,6 +42,9 @@ class _FlowShellState extends State<FlowShell> {
   PromptItem? _activePromptForEdit;
   bool _isEditorOpen = false;
   bool _isCreateMode = false;
+  bool _isFolderSidebarOpen = true;
+
+  static const _desktopFolderSidebarWidth = 280.0;
 
   @override
   void initState() {
@@ -306,6 +309,31 @@ class _FlowShellState extends State<FlowShell> {
       _isCreateMode = false;
       _isEditorOpen = false;
     });
+  }
+
+  Widget _buildFolderSidebar() {
+    return FolderSidebar(
+      folders: widget.store.folders,
+      prompts: widget.store.prompts,
+      selectedFolderId: _selectedFolderId,
+      onSelectFolder: (id) {
+        triggerInteractionHaptic(widget.store.settings);
+        setState(() => _selectedFolderId = id);
+      },
+      onCreateFolder: () {
+        triggerInteractionHaptic(widget.store.settings);
+        _showFolderDialog();
+      },
+      onEditFolder: (folder) {
+        triggerInteractionHaptic(widget.store.settings);
+        _showFolderDialog(folder: folder);
+      },
+      onDeleteFolder: (folder) {
+        triggerInteractionHaptic(widget.store.settings);
+        _deleteFolder(folder);
+      },
+      onReorder: _reorderFolder,
+    );
   }
 
   Future<void> _deletePrompt(PromptItem p) async {
@@ -946,13 +974,24 @@ class _FlowShellState extends State<FlowShell> {
                   },
                 )
               : IconButton(
-                  icon: const Icon(Icons.menu_rounded),
-                  onPressed: isWide
-                      ? null
-                      : () {
-                          triggerInteractionHaptic(widget.store.settings);
-                          _scaffoldKey.currentState?.openDrawer();
-                        },
+                  tooltip: isWide
+                      ? (_isFolderSidebarOpen ? '폴더바 닫기' : '폴더바 열기')
+                      : '폴더 메뉴',
+                  icon: Icon(
+                    isWide && _isFolderSidebarOpen
+                        ? Icons.menu_open_rounded
+                        : Icons.menu_rounded,
+                  ),
+                  onPressed: () {
+                    triggerInteractionHaptic(widget.store.settings);
+                    if (isWide) {
+                      setState(
+                        () => _isFolderSidebarOpen = !_isFolderSidebarOpen,
+                      );
+                    } else {
+                      _scaffoldKey.currentState?.openDrawer();
+                    }
+                  },
                 ),
           title: _isSearching
               ? TextField(
@@ -1010,55 +1049,24 @@ class _FlowShellState extends State<FlowShell> {
             ? null
             : Drawer(
                 width: 280,
-                child: FolderSidebar(
-                  folders: widget.store.folders,
-                  prompts: widget.store.prompts,
-                  selectedFolderId: _selectedFolderId,
-                  onSelectFolder: (id) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    setState(() => _selectedFolderId = id);
-                  },
-                  onCreateFolder: () {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _showFolderDialog();
-                  },
-                  onEditFolder: (f) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _showFolderDialog(folder: f);
-                  },
-                  onDeleteFolder: (f) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _deleteFolder(f);
-                  },
-                  onReorder: _reorderFolder,
-                ),
+                child: _buildFolderSidebar(),
               ),
         body: Row(
           children: [
             if (isWide)
-              SizedBox(
-                width: 280,
-                child: FolderSidebar(
-                  folders: widget.store.folders,
-                  prompts: widget.store.prompts,
-                  selectedFolderId: _selectedFolderId,
-                  onSelectFolder: (id) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    setState(() => _selectedFolderId = id);
-                  },
-                  onCreateFolder: () {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _showFolderDialog();
-                  },
-                  onEditFolder: (f) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _showFolderDialog(folder: f);
-                  },
-                  onDeleteFolder: (f) {
-                    triggerInteractionHaptic(widget.store.settings);
-                    _deleteFolder(f);
-                  },
-                  onReorder: _reorderFolder,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                width: _isFolderSidebarOpen
+                    ? _desktopFolderSidebarWidth
+                    : 0.0,
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: _desktopFolderSidebarWidth,
+                    maxWidth: _desktopFolderSidebarWidth,
+                    child: _buildFolderSidebar(),
+                  ),
                 ),
               ),
             Expanded(
